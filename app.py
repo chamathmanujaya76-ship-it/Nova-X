@@ -532,7 +532,7 @@ else:
                 star_loader.markdown('<div class="nova-star-loader">✦</div>', unsafe_allow_html=True)
                 
                 reply = None
-                models_to_try = ["gemini-2.5-flash", "gemini-1.5-flash"]
+                models_to_try = ["gemini-3.6-flash", "gemini-1.5-flash","gemini-2.5-flash","gemini-2.0-flash"]
                 
                 for model_name in models_to_try:
                     try:
