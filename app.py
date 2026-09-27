@@ -1,18 +1,28 @@
-import streamlit as st
-from google import genai
-from PIL import Image
-import base64
+import os
 import time
+import base64
+import hashlib
+import io
+import re
+from datetime import datetime
+from PIL import Image
+import streamlit as st
+import streamlit.components.v1 as components
+from google import genai
+from google.genai import types
 import firebase_admin
 from firebase_admin import credentials, firestore
-from datetime import datetime
-import hashlib
-import os
 
-# 1. Page Config
+# 1. Page Favicon & Config
+try:
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    favicon_img = Image.open(os.path.join(base_dir, "logo 3.png"))
+except Exception:
+    favicon_img = "✨"
+
 st.set_page_config(
     page_title="Nova-X - AI Assistant",
-    page_icon="✨",
+    page_icon=favicon_img,
     layout="centered"
 )
 
@@ -35,7 +45,7 @@ except Exception:
 
 # Helper Functions
 def hash_password(password):
-    return hashlib.sha256(str.encode(password)).hexdigest()
+    return hashlib.sha256(str(password).encode('utf-8')).hexdigest()
 
 def register_user(name, email, password):
     if not db:
@@ -80,17 +90,51 @@ def get_user_by_id(user_id):
         pass
     return None
 
-def save_chat_to_firebase(role, content):
+def save_chat_to_firebase(session_id, role, content):
     if db and st.session_state.get("user_info"):
         try:
-            db.collection("chat_history").add({
+            db.collection("chat_sessions").document(session_id).collection("messages").add({
                 "user_id": st.session_state.user_info.get("id"),
                 "role": role,
                 "content": content,
                 "timestamp": datetime.utcnow()
             })
-        except Exception:
-            pass
+            db.collection("chat_sessions").document(session_id).set({
+                "user_id": st.session_state.user_info.get("id"),
+                "last_updated": datetime.utcnow(),
+                "title": st.session_state.get("session_title", "New Conversation")
+            }, merge=True)
+        except Exception as e:
+            print(f"Firebase Save Error: {e}")
+
+def get_user_chat_sessions(user_id):
+    if not db:
+        return []
+    try:
+        docs = db.collection("chat_sessions").where("user_id", "==", user_id).stream()
+        sessions = []
+        for doc in docs:
+            d = doc.to_dict()
+            d["id"] = doc.id
+            sessions.append(d)
+        sessions.sort(key=lambda x: x.get("last_updated", datetime.min), reverse=True)
+        return sessions
+    except Exception as e:
+        print(f"Firebase Fetch Error: {e}")
+        return []
+
+def get_messages_for_session(session_id):
+    if not db:
+        return []
+    try:
+        docs = db.collection("chat_sessions").document(session_id).collection("messages").order_by("timestamp").stream()
+        msgs = []
+        for doc in docs:
+            msgs.append(doc.to_dict())
+        return msgs
+    except Exception as e:
+        print(f"Fetch Messages Error: {e}")
+        return []
 
 def render_centered_image(image_name, width):
     try:
@@ -106,25 +150,36 @@ def render_centered_image(image_name, width):
     except Exception as e:
         print(f"Image Load Error: {e}")
 
-# 3. Custom CSS - Enhanced Pure Pitch Black & Deep Blue Glow Theme
+# 3. Custom CSS - Pitch Black & Deep Violet Glow Theme
 st.markdown("""
 <style>
-    /* Full Application Background - Pure Pitch Black */
-    html, body, .stApp, [data-testid="stHeader"], [data-testid="stBottom"], [data-testid="stToolbar"] {
+    /* Pitch Black App Background */
+    html, body, .stApp, [data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stSidebar"] {
         background-color: #000000 !important;
         background: #000000 !important;
         color: #FFFFFF !important;
     }
 
-    /* Main Container Center Limit */
+    *:focus, *:focus-visible, *:active, input:focus, textarea:focus {
+        outline: none !important;
+        border-color: transparent !important;
+        box-shadow: none !important;
+    }
+
     .main .block-container {
-        padding-top: 2rem !important;
-        padding-bottom: 3rem !important;
+        padding-top: 1.5rem !important;
+        padding-bottom: 7rem !important;
         max-width: 720px !important;
         margin: 0 auto !important;
     }
 
-    /* Force Direct Center Alignment for Logos & Text */
+    /* Sidebar */
+    section[data-testid="stSidebar"] {
+        background-color: #04020A !important;
+        border-right: 1.5px solid #7B00FF55 !important;
+    }
+
+    /* Centered Logos */
     .centered-logo-box {
         display: flex;
         flex-direction: column;
@@ -135,128 +190,158 @@ st.markdown("""
         margin: 0 auto 15px auto;
     }
 
-    .centered-logo-box img {
-        display: block;
-        margin-left: auto;
-        margin-right: auto;
+    /* Nova Star Loading Animation */
+    @keyframes starPulseGlow {
+        0% { transform: rotate(0deg) scale(1); filter: drop-shadow(0 0 10px #7B00FF); }
+        50% { transform: rotate(180deg) scale(1.4); filter: drop-shadow(0 0 35px #7B00FF) drop-shadow(0 0 50px #0044FF); }
+        100% { transform: rotate(360deg) scale(1); filter: drop-shadow(0 0 10px #7B00FF); }
     }
 
-    /* Input Fields Styling (Email & Password Box Glow) */
+    .nova-star-loader {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 20px auto;
+        font-size: 45px;
+        color: #7B00FF;
+        animation: starPulseGlow 1.6s infinite ease-in-out;
+    }
+
+    /* Inputs & Buttons */
     div[data-baseweb="input"] {
-        background-color: #08080C !important;
-        border: 1.5px solid #00E5FF !important;
-        border-radius: 12px !important;
-        box-shadow: 0 0 10px rgba(0, 229, 255, 0.3) !important;
+        background-color: #06030E !important;
+        border: 1.8px solid #7B00FF !important;
+        border-radius: 14px !important;
+        box-shadow: 0 0 18px rgba(123, 0, 255, 0.45) !important;
         color: #FFFFFF !important;
-        transition: all 0.3s ease-in-out !important;
     }
 
     div[data-baseweb="input"]:focus-within {
-        border-color: #00E5FF !important;
-        box-shadow: 0 0 20px rgba(0, 229, 255, 0.8), 0 0 35px rgba(0, 229, 255, 0.4) !important;
+        border-color: #0044FF !important;
+        box-shadow: 0 0 30px rgba(123, 0, 255, 0.85), 0 0 50px rgba(0, 68, 255, 0.7) !important;
     }
 
     div[data-baseweb="input"] input {
         color: #FFFFFF !important;
-        background-color: transparent !important;
     }
 
-    /* Primary Buttons (Login / Sign Up) Styling with Intense Blue Glow */
     div.stButton > button {
-        background: linear-gradient(135deg, #00E5FF 0%, #0088FF 100%) !important;
-        color: #000000 !important;
-        font-weight: bold !important;
-        border-radius: 12px !important;
+        background: linear-gradient(135deg, #7B00FF 0%, #0044FF 100%) !important;
+        color: #FFFFFF !important;
+        font-weight: 700 !important;
+        border-radius: 14px !important;
         border: none !important;
-        padding: 10px 24px !important;
-        box-shadow: 0 0 15px rgba(0, 229, 255, 0.6) !important;
+        padding: 12px 24px !important;
+        box-shadow: 0 0 22px rgba(123, 0, 255, 0.6) !important;
         transition: all 0.3s ease-in-out !important;
         width: 100% !important;
     }
 
     div.stButton > button:hover {
         transform: translateY(-2px) !important;
-        box-shadow: 0 0 25px rgba(0, 229, 255, 1), 0 0 40px rgba(0, 229, 255, 0.8) !important;
-        color: #000000 !important;
+        box-shadow: 0 0 35px rgba(123, 0, 255, 0.95), 0 0 60px rgba(0, 68, 255, 0.85) !important;
     }
 
-    /* Tabs Styling */
     button[data-baseweb="tab"] {
         color: #888888 !important;
         background-color: transparent !important;
-        font-weight: 600 !important;
     }
 
     button[aria-selected="true"] {
-        color: #00E5FF !important;
-        border-bottom-color: #00E5FF !important;
-        text-shadow: 0 0 10px rgba(0, 229, 255, 0.7) !important;
+        color: #7B00FF !important;
+        border-bottom-color: #7B00FF !important;
+        text-shadow: 0 0 15px rgba(123, 0, 255, 0.9) !important;
     }
 
-    /* RED NEON GLOW ALERT BOXES (For Errors / Wrong Password) */
-    div[data-testid="stNotification"] {
-        background-color: #120005 !important;
-        border: 1.5px solid #FF0055 !important;
-        border-radius: 12px !important;
-        color: #FF4D79 !important;
-        box-shadow: 0 0 20px rgba(255, 0, 85, 0.6), inset 0 0 10px rgba(255, 0, 85, 0.3) !important;
-    }
-
-    div[data-testid="stNotification"] svg {
-        fill: #FF0055 !important;
-    }
-
-    /* SUCCESS NEON GLOW ALERT BOXES */
-    div[data-testid="stAlert"] {
-        border-radius: 12px !important;
-    }
-
-    /* Gemini Style Chat Search Bar */
-    div[data-testid="stChatInput"] {
-        background-color: #08080C !important;
-        border: 1.5px solid #00E5FF !important;
-        border-radius: 28px !important;
-        box-shadow: 0 0 15px rgba(0, 229, 255, 0.4) !important;
-        padding: 4px 10px !important;
-    }
-
-    div[data-testid="stChatInput"] *,
-    div[data-baseweb="base-input"],
-    div[data-baseweb="textarea"],
-    div[data-testid="stChatInput"] textarea {
-        background-color: transparent !important;
-        background: transparent !important;
+    /* Pure Pitch Black Bottom Container Area */
+    [data-testid="stBottom"], 
+    [data-testid="stBottom"] > div,
+    [data-testid="stBottom"] *,
+    div[data-testid="stChatFloatingInputContainer"] {
+        background-color: #000000 !important;
+        background: #000000 !important;
         border: none !important;
-        outline: none !important;
         box-shadow: none !important;
+    }
+
+    [data-testid="stBottom"] {
+        padding-bottom: 20px !important;
+    }
+
+    /* Fixed Main Container alignment */
+    [data-testid="stBottom"] > div {
+        position: relative !important;
+        max-width: 720px !important;
+        margin: 0 auto !important;
+    }
+
+    /* Main Chat Input Box */
+    div[data-testid="stChatInput"] {
+        background-color: #06030E !important;
+        border: 1.8px solid #7B00FF !important;
+        border-radius: 28px !important;
+        box-shadow: 0 0 22px rgba(123, 0, 255, 0.5) !important;
+        position: relative !important;
+    }
+
+    div[data-testid="stChatInput"] textarea {
+        padding-right: 55px !important;
         color: #FFFFFF !important;
     }
 
-    div[data-testid="stChatInput"]:focus-within {
-        border-color: #00E5FF !important;
-        box-shadow: 0 0 25px rgba(0, 229, 255, 0.8) !important;
+    /* Remove inner borders/backgrounds */
+    div[data-testid="stChatInput"] * {
+        background-color: transparent !important;
+        box-shadow: none !important;
     }
 
+    div[data-testid="stChatInput"]:focus-within {
+        border-color: #0044FF !important;
+        box-shadow: 0 0 35px rgba(123, 0, 255, 0.95), 0 0 55px rgba(0, 68, 255, 0.8) !important;
+    }
+
+    /* Send Button - Far Right */
     button[data-testid="stChatInputSubmitButton"] {
-        background-color: #00E5FF !important;
+        background: linear-gradient(135deg, #7B00FF 0%, #0044FF 100%) !important;
         border-radius: 50% !important;
         border: none !important;
+        box-shadow: 0 0 15px rgba(123, 0, 255, 0.8) !important;
+        right: 12px !important;
+        top: 50% !important;
+        transform: translateY(-50%) !important;
+        position: absolute !important;
+        z-index: 10 !important;
     }
 
     button[data-testid="stChatInputSubmitButton"] svg {
-        fill: #000000 !important;
+        fill: #FFFFFF !important;
     }
 
-    div[data-testid="stChatMessage"] {
-        background-color: #0D0D10 !important;
-        border-radius: 14px !important;
-        border: 1px solid #1A1A20 !important;
-        margin-bottom: 12px !important;
+    /* Creator Credit Line */
+    .nova-creator-credit {
+        position: fixed !important;
+        bottom: 6px !important;
+        left: 0 !important;
+        right: 0 !important;
+        margin: 0 auto !important;
+        text-align: center !important;
+        color: #BBBBBB !important;
+        font-size: 0.85rem !important;
+        font-weight: 500 !important;
+        letter-spacing: 0.5px !important;
+        z-index: 999999 !important;
+        pointer-events: none !important;
+        line-height: 1 !important;
+    }
+
+    .nova-creator-credit b {
+        color: #7B00FF !important;
+        font-weight: 700 !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# API & Session State Setup
+# API Setup
 try:
     API_KEY = st.secrets["GEMINI_API_KEY"]
 except Exception:
@@ -273,20 +358,24 @@ system_instruction = """
 - කවුරුන් හෝ "ඔයාගේ නම මොකක්ද?" කියා ඇසුවොත් "මගේ නම Nova-X" ලෙස පවසන්න.
 
 ප්‍රධාන පහසුකම්:
-1. Image Analysis: පරිශීලකයා Search bar එකෙන් පින්තූරයක් Upload කළ විට එහි ඇති දේවල් විස්තර කරන්න.
-2. Translation: ඕනෑම භාෂාවක ඡේදයක්/වචනයක් හෝ පින්තූරයක ඇති අකුරු සිංහලට Translate කර දෙන්න.
+1. Image Analysis: පරිශීලකයා ලබාදෙන පින්තූර පරීක්ෂා කර විස්තර කරන්න.
+2. Translation: ඕනෑම භාෂාවක ඡේදයක්/වචනයක් සිංහලට Translate කර දෙන්න.
 3. General Knowledge: ඕනෑම ප්‍රශ්නයකට පැහැදිලි හා මිත්‍රශීලී පිළිතුරු සපයන්න.
 """
 
-# AUTO-LOGIN / REFRESH PERSISTENCE LOGIC
+# Session State Setup
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "user_info" not in st.session_state:
     st.session_state.user_info = None
 if "messages" not in st.session_state:
     st.session_state.messages = []
+if "current_session_id" not in st.session_state:
+    st.session_state.current_session_id = f"session_{int(time.time())}"
+if "session_title" not in st.session_state:
+    st.session_state.session_title = "New Chat"
 
-# URL එකෙන් User ID එක පරීක්ෂා කර Auto-Login වීම
+# Auto-Login
 query_params = st.query_params
 if not st.session_state.logged_in and "session_id" in query_params:
     saved_id = query_params["session_id"]
@@ -295,7 +384,7 @@ if not st.session_state.logged_in and "session_id" in query_params:
         st.session_state.logged_in = True
         st.session_state.user_info = user_data
 
-# 4. Authentication Flow (Guard Rail)
+# 4. Authentication Flow
 if not st.session_state.logged_in:
     render_centered_image("logo 1.png", 200)
     st.title("🔐 Nova-X AI - Login / Register")
@@ -313,7 +402,7 @@ if not st.session_state.logged_in:
                 if success:
                     st.session_state.logged_in = True
                     st.session_state.user_info = result
-                    st.query_params["session_id"] = result["id"] # Save Session ID to URL
+                    st.query_params["session_id"] = result["id"]
                     st.success(f"සාදරයෙන් පිළිගන්නවා, {result['name']}!")
                     st.rerun()
                 else:
@@ -337,15 +426,38 @@ if not st.session_state.logged_in:
             else:
                 st.warning("කරුණාකර සියලු විස්තර ලබාදෙන්න.")
 
-# 5. Main Chat Interface (Only for Authenticated Users)
+# 5. Main Chat Interface
 else:
-    # Sidebar Profile
-    st.sidebar.write(f"👤 Logged in as: **{st.session_state.user_info['name']}**")
+    # Sidebar Setup
+    st.sidebar.markdown(f"👤 User: **{st.session_state.user_info['name']}**")
+    
+    if st.sidebar.button("➕ New Chat"):
+        st.session_state.messages = []
+        st.session_state.current_session_id = f"session_{int(time.time())}"
+        st.session_state.session_title = "New Chat"
+        st.rerun()
+        
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("📜 Chat History")
+    
+    user_sessions = get_user_chat_sessions(st.session_state.user_info["id"])
+    for sess in user_sessions:
+        s_id = sess["id"]
+        s_title = sess.get("title", "Previous Conversation")
+        
+        if st.sidebar.button(f"💬 {s_title[:20]}...", key=s_id):
+            st.session_state.current_session_id = s_id
+            st.session_state.session_title = s_title
+            loaded_msgs = get_messages_for_session(s_id)
+            st.session_state.messages = [{"role": m["role"], "content": m["content"]} for m in loaded_msgs]
+            st.rerun()
+
+    st.sidebar.markdown("---")
     if st.sidebar.button("Logout"):
         st.session_state.logged_in = False
         st.session_state.user_info = None
         st.session_state.messages = []
-        st.query_params.clear() # Clear URL Session
+        st.query_params.clear()
         st.rerun()
 
     # App Branding
@@ -353,14 +465,14 @@ else:
     render_centered_image("logo 2.png", 320)
 
     st.markdown("""
-        <div style='text-align: center; width: 100%; margin-top: -10px; margin-bottom: 25px;'>
+        <div style='text-align: center; width: 100%; margin-top: -10px; margin-bottom: 20px;'>
             <p style='color: #888888; font-size: 0.95em; margin: 0;'>
                 Your Personal Intelligent Companion 
             </p>
         </div>
     """, unsafe_allow_html=True)
 
-    # Display History
+    # Display Current Messages
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             if "images" in message:
@@ -368,16 +480,26 @@ else:
                     st.image(img, width=250)
             st.markdown(message["content"])
 
-    # Chat Input Processing
+    # Chat Input Box
     prompt_data = st.chat_input(
-        "Nova-X වෙතින් ඕනෑම දෙයක් අහන්න හෝ Translate කරන්න...",
+        "Ask Nova-X...",
         accept_file="multiple",
         file_type=["png", "jpg", "jpeg", "webp"]
     )
 
+    # Footer Credit Line
+    st.markdown("""
+        <div class="nova-creator-credit">
+            Nova-X v1.0 | Creator by <b>Chamath</b>
+        </div>
+    """, unsafe_allow_html=True)
+
     if prompt_data:
         user_text = getattr(prompt_data, "text", "") or ""
         uploaded_files = getattr(prompt_data, "files", []) or []
+
+        if not st.session_state.messages:
+            st.session_state.session_title = user_text[:25] if user_text else "New Chat"
 
         st.session_state.messages.append({
             "role": "user", 
@@ -385,8 +507,7 @@ else:
             "images": uploaded_files
         })
 
-        if user_text:
-            save_chat_to_firebase("user", user_text)
+        save_chat_to_firebase(st.session_state.current_session_id, "user", user_text)
 
         with st.chat_message("user"):
             for file in uploaded_files:
@@ -397,21 +518,21 @@ else:
         contents = []
         for file in uploaded_files:
             try:
-                img = Image.open(file)
-                contents.append(img)
+                contents.append(Image.open(file))
             except Exception:
                 pass
-        
+
         if user_text:
             contents.append(user_text)
 
         if contents:
             client = genai.Client(api_key=API_KEY)
             with st.chat_message("assistant"):
-                reply = None
+                star_loader = st.empty()
+                star_loader.markdown('<div class="nova-star-loader">✦</div>', unsafe_allow_html=True)
                 
-                # Google GenAI SDK එක ඉල්ලන අලුත්ම Model එක
-                models_to_try = ["gemini-3.6-flash", "gemini-1.5-flash"]
+                reply = None
+                models_to_try = ["gemini-2.5-flash", "gemini-1.5-flash"]
                 
                 for model_name in models_to_try:
                     try:
@@ -427,21 +548,15 @@ else:
                             reply = response.text
                             break
                     except Exception as e:
-                        print(f"❌ Model [{model_name}] Error: {e}")
+                        print(f"API Error ({model_name}): {e}")
                         time.sleep(0.5)
                         continue
+
+                star_loader.empty()
 
                 if reply:
                     st.markdown(reply)
                     st.session_state.messages.append({"role": "assistant", "content": reply})
-                    save_chat_to_firebase("assistant", reply)
+                    save_chat_to_firebase(st.session_state.current_session_id, "assistant", reply)
                 else:
-                    st.error("Google Gemini API එක මඟින් Response එකක් ලබාගැනීමට නොහැකි විය. කරුණාකර API Key එක පරීක්ෂා කරන්න.")
-# Footer
-st.markdown("<br><hr style='border-color: #1A1A1A;'>", unsafe_allow_html=True)
-st.markdown(
-    "<div style='text-align: center; color: #555555; font-size: 0.8em;'>"
-    "Nova-X v1.0 | Powered by <b>Chamath</b>"
-    "</div>", 
-    unsafe_allow_html=True
-)
+                    st.error("Google Gemini API එක සමඟ සම්බන්ධ වීමට නොහැකි විය. කරුණාකර API Key එක පරීක්ෂා කරන්න.")
