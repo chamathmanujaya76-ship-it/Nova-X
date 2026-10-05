@@ -1,0 +1,18 @@
+# Python Environment & Cache
+venv/
+__pycache__/
+*.pyc
+
+# Desktop App Files (PyInstaller / Electron builds)
+build/
+dist/
+desktop_app.py
+desktop_app.spec
+
+# Firebase Credentials & Sensitive Files (Security)
+*.json
+
+# OS & Editor specific files
+.DS_Store
+.vscode/
+.idea/

@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+google-genai
+google-generativeai
+duckduckgo-search
+firebase-admin
+gTTS
+python-multipart
+pydantic

@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nova-X | AI Assistant</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+
+    <!-- USER ACCOUNT REGISTRATION & LOGIN MODAL -->
+    <div class="auth-modal-overlay" id="authModal">
+        <div class="auth-card">
+            <div class="auth-header">
+                <h2><i class="fa-solid fa-sparkles" style="color: #7B00FF;"></i> Nova-X AI</h2>
+                <p id="authSubtitle">ඇප් එක පාවිච්චි කිරීමට ඔබගේ Account එක සාදන්න</p>
+            </div>
+
+            <!-- REGISTER FORM -->
+            <form class="auth-form" id="registerForm" onsubmit="handleRegister(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>පළමු නම (First Name)</label>
+                        <input type="text" id="regFirstName" placeholder="Chamath" required>
+                    </div>
+                    <div class="form-group">
+                        <label>දෙවන නම (Last Name)</label>
+                        <input type="text" id="regLastName" placeholder="Manujaya" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>වයස (Age)</label>
+                        <input type="number" id="regAge" placeholder="20" min="10" max="100" required>
+                    </div>
+                    <div class="form-group">
+                        <label>රට (Country)</label>
+                        <input type="text" id="regCountry" placeholder="Sri Lanka" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>පාවිච්චි කරන අරමුණ (Purpose)</label>
+                    <select id="regPurpose" required>
+                        <option value="Personal Use">Personal Use / පුද්ගලික භාවිතයට</option>
+                        <option value="Education">Education / අධ්‍යාපනික වැඩවලට</option>
+                        <option value="Software Development">Software Development / ක්‍රමලේඛනය</option>
+                        <option value="Business">Business / ව්‍යාපාරික කටයුතු වලට</option>
+                        <option value="Other">Other / වෙනත්</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>විද්‍යුත් තැපෑල (Email)</label>
+                    <input type="email" id="regEmail" placeholder="example@mail.com" required>
+                </div>
+
+                <div class="form-group">
+                    <label>මුරපදය (Password)</label>
+                    <input type="password" id="regPassword" placeholder="••••••••" required>
+                </div>
+
+                <button type="submit" class="auth-btn">Account එක සාදන්න</button>
+
+                <div class="auth-switch">
+                    මීට පෙර Account එකක් සෑදුවාද? <a onclick="toggleAuthMode('login')">Sign In වන්න</a>
+                </div>
+            </form>
+
+            <!-- LOGIN FORM -->
+            <form class="auth-form" id="loginForm" onsubmit="handleLogin(event)" style="display: none;">
+                <div class="form-group">
+                    <label>විද්‍යුත් තැපෑල (Email)</label>
+                    <input type="email" id="loginEmail" placeholder="example@mail.com" required>
+                </div>
+
+                <div class="form-group">
+                    <label>මුරපදය (Password)</label>
+                    <input type="password" id="loginPassword" placeholder="••••••••" required>
+                </div>
+
+                <button type="submit" class="auth-btn">Sign In වන්න</button>
+
+                <div class="auth-switch">
+                    තවම Account එකක් නැද්ද? <a onclick="toggleAuthMode('register')">නව Account එකක් සාදන්න</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MAIN APP LAYOUT -->
+    <div class="app-container">
+        <!-- Left Sidebar (Collapsible Gemini Style) -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-top">
+                <button class="sidebar-toggle-btn" onclick="toggleSidebar()" title="Toggle Sidebar">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+                <div class="sidebar-brand">
+                    <img src="/static/logo1.png" alt="Logo" class="sidebar-logo-icon" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
+                    <i class="fa-solid fa-sparkles sidebar-fallback-icon" style="display:none; color: #7B00FF;"></i>
+                    <span class="sidebar-brand-text">Nova-X AI</span>
+                </div>
+            </div>
+
+            <button class="new-chat-btn" onclick="startNewChat()">
+                <i class="fa-solid fa-plus"></i>
+                <span class="btn-text">New chat</span>
+            </button>
+
+            <div class="sidebar-history">
+                <div class="history-title">Recent</div>
+                <div class="history-list" id="chatHistoryList">
+                    <div class="history-item active">
+                        <i class="fa-regular fa-message"></i>
+                        <span>New Conversation</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dynamic User Profile -->
+            <div class="sidebar-bottom">
+                <div class="user-profile">
+                    <i class="fa-solid fa-circle-user profile-icon"></i>
+                    <div class="user-info-box">
+                        <span class="creator-badge" id="creatorBadge" style="display: none;">👑 CREATOR</span>
+                        <span class="user-name" id="userNameDisplay">Account User</span>
+                    </div>
+                </div>
+                <button class="settings-btn" onclick="logoutUser()" title="Logout">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Workspace Area -->
+        <main class="main-container" id="mainContainer">
+            <!-- Top Header -->
+            <header class="app-header">
+                <div class="brand-badge"><i class="fa-solid fa-sparkles"></i> Nova-X AI</div>
+                <button class="live-voice-btn" onclick="openLiveVoiceMode()">
+                    <span class="live-dot"></span>
+                    <i class="fa-solid fa-microphone-lines"></i> Nova-X Live Voice
+                </button>
+            </header>
+
+            <!-- Center Banner Logo -->
+            <div class="hero-banner" id="heroBanner">
+                <div class="logo1-box">
+                    <img src="/static/logo1.png" id="logo1" alt="Logo 1" onerror="this.style.display='none'; document.getElementById('logo1-fallback').style.display='block';">
+                    <div id="logo1-fallback" class="star-glow" style="display:none;">✦</div>
+                </div>
+                <div class="logo2-box">
+                    <img src="/static/logo2.png" id="logo2" alt="Logo 2" onerror="this.style.display='none'; document.getElementById('logo2-fallback').style.display='block';">
+                    <div id="logo2-fallback" style="display:none;">
+                        <h1 class="logo-title">Nova-X</h1>
+                        <p class="logo-subtitle">AI ASSISTANT</p>
+                        <p class="logo-desc">Your Personal Intelligent Companion</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chat History Area -->
+            <div class="chat-area" id="chatContainer"></div>
+
+            <!-- Floating Glow Input Bar -->
+            <div class="input-wrapper">
+                <!-- Attached File Previews -->
+                <div class="file-preview-container" id="filePreviewContainer"></div>
+
+                <div class="search-option">
+                    <input type="checkbox" id="webSearchToggle" checked>
+                    <label for="webSearchToggle"><i class="fa-solid fa-globe"></i> Live Web Search</label>
+                </div>
+                
+                <div class="glow-input-box">
+                    <label class="plus-icon-label" for="fileInput" title="Attach files (Image, Audio, Video, Docs)">
+                        <span class="plus-icon">+</span>
+                        <input type="file" id="fileInput" multiple accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.pptx,.ppt,.xlsx,.xls,.txt" style="display: none;" onchange="handleFileSelect(event)">
+                    </label>
+
+                    <input type="text" id="userInput" placeholder="Ask Nova-X..." onkeydown="handleKeyPress(event)">
+                    
+                    <div class="mic-dropdown-container">
+                        <button type="button" class="mic-btn" id="micBtn" onclick="toggleMicMenu()">
+                            <i class="fa-solid fa-microphone"></i>
+                        </button>
+                        <div class="mic-options-menu" id="micOptionsMenu">
+                            <div class="mic-option-item" onclick="startDirectVoiceChat()">
+                                <i class="fa-solid fa-bolt"></i>
+                                <div>
+                                    <strong>සෘජු වොයිස් චැට් (Direct Voice)</strong>
+                                    <small>කතා කරන්න, AI අසා කෙලින්ම පිළිතුරු සපයයි</small>
+                                </div>
+                            </div>
+                            <div class="mic-option-item" onclick="startVoiceToText()">
+                                <i class="fa-solid fa-keyboard"></i>
+                                <div>
+                                    <strong>වොයිස් ටයිපින් (Voice to Text)</strong>
+                                    <small>ටයිප් වී තත්පර 5කින් Auto Send වේ</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button onclick="sendMessage()" id="sendBtn"><i class="fa-solid fa-arrow-up"></i></button>
+                </div>
+                <footer class="app-footer">
+                    Nova-X v1.0 | Creator by <span class="author-name">Chamath</span>
+                </footer>
+            </div>
+        </main>
+    </div>
+
+    <!-- FULLSCREEN SCI-FI NOVA-X LIVE VOICE MODE OVERLAY -->
+    <div class="live-voice-overlay" id="liveVoiceOverlay">
+        <div class="live-header">
+            <div class="live-title"><i class="fa-solid fa-atom"></i> Nova-X Live Voice Mode</div>
+            <button class="close-live-btn" onclick="closeLiveVoiceMode()"><i class="fa-solid fa-xmark"></i> Exit Live</button>
+        </div>
+
+        <div class="sci-fi-stage">
+            <div class="orb-visualizer-container" id="orbContainer">
+                <div class="outer-wave-ring wave-particles"></div>
+                <div class="outer-wave-ring wave-3"></div>
+                <div class="outer-wave-ring wave-2"></div>
+                <div class="outer-wave-ring wave-1"></div>
+                <div class="core-sci-fi-orb" id="coreOrb"></div>
+            </div>
+            <div class="voice-status-text" id="liveVoiceStatus">සවන්දෙමින් පවතී... කතා කරන්න...</div>
+            <div class="transcript-preview" id="liveTranscript"></div>
+        </div>
+
+        <div class="live-controls">
+            <button class="live-mic-toggle-btn active" id="liveMicToggle" onclick="toggleLiveMic()">
+                <i class="fa-solid fa-microphone"></i>
+            </button>
+        </div>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>
