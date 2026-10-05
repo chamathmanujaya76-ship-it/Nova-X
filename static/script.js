@@ -4,37 +4,59 @@ let isLiveVoiceActive = false;
 let selectedFiles = [];
 let currentUser = null;
 let conversationHistory = []; // Context Memory Store
+let chatHistoryListArray = []; // Sidebar History Items
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 // App Initialization on Page Load
 document.addEventListener("DOMContentLoaded", () => {
     checkUserAuth();
+    loadSavedHistory();
 });
 
 // User Auth Check
 function checkUserAuth() {
-    const savedUser = localStorage.getItem("nova_user_data");
+    const savedUser = localStorage.getItem("nexuz_user_data");
     const authModal = document.getElementById("authModal");
 
     if (savedUser) {
         currentUser = JSON.parse(savedUser);
         if (authModal) authModal.style.display = "none";
         
-        const userDisplayElem = document.getElementById("userNameDisplay");
-        const creatorBadgeElem = document.getElementById("creatorBadge");
-
-        if (userDisplayElem) {
-            userDisplayElem.innerText = currentUser.first_name + " " + (currentUser.last_name || "");
-        }
-
-        if (currentUser.email && currentUser.email.toLowerCase() === "chamathmanujaya76@gmail.com") {
-            if (creatorBadgeElem) creatorBadgeElem.style.display = "inline-flex";
-        } else {
-            if (creatorBadgeElem) creatorBadgeElem.style.display = "none";
-        }
+        updateSidebarUserDisplay();
     } else {
         if (authModal) authModal.style.display = "flex";
+    }
+}
+
+// Update User Profile Display in Sidebar
+function updateSidebarUserDisplay() {
+    if (!currentUser) return;
+
+    const userDisplayElem = document.getElementById("userNameDisplay");
+    const creatorBadgeElem = document.getElementById("creatorBadge");
+    const userAvatarImg = document.getElementById("userAvatarImg");
+    const defaultUserIcon = document.getElementById("defaultUserIcon");
+
+    if (userDisplayElem) {
+        // පළමු සහ දෙවන නම එකතු කර සම්පූර්ණ නම පෙන්වීම (Image 3 - 1 ස්ථානය)
+        const fullName = currentUser.full_name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.strip() || currentUser.first_name || "Account User";
+        userDisplayElem.innerText = fullName;
+    }
+
+    if (currentUser.email && currentUser.email.toLowerCase() === "chamathmanujaya76@gmail.com") {
+        if (creatorBadgeElem) creatorBadgeElem.style.display = "inline-flex";
+    } else {
+        if (creatorBadgeElem) creatorBadgeElem.style.display = "none";
+    }
+
+    if (currentUser.profile_pic && userAvatarImg) {
+        userAvatarImg.src = currentUser.profile_pic;
+        userAvatarImg.style.display = "block";
+        if (defaultUserIcon) defaultUserIcon.style.display = "none";
+    } else if (userAvatarImg && defaultUserIcon) {
+        userAvatarImg.style.display = "none";
+        defaultUserIcon.style.display = "block";
     }
 }
 
@@ -84,7 +106,7 @@ async function handleRegister(e) {
 
         const data = await res.json();
         if (data.success) {
-            localStorage.setItem("nova_user_data", JSON.stringify(data.user));
+            localStorage.setItem("nexuz_user_data", JSON.stringify(data.user));
             checkUserAuth();
         } else {
             alert(data.message || "Account එක සෑදීමට නොහැකි විය.");
@@ -110,7 +132,7 @@ async function handleLogin(e) {
 
         const data = await res.json();
         if (data.success) {
-            localStorage.setItem("nova_user_data", JSON.stringify(data.user));
+            localStorage.setItem("nexuz_user_data", JSON.stringify(data.user));
             checkUserAuth();
         } else {
             alert(data.message || "Login විය නොහැකි විය.");
@@ -122,8 +144,86 @@ async function handleLogin(e) {
 
 function logoutUser() {
     if (confirm("ඔබට Account එකෙන් ඉවත් වීමට අවශ්‍යද?")) {
-        localStorage.removeItem("nova_user_data");
+        localStorage.removeItem("nexuz_user_data");
         location.reload();
+    }
+}
+
+// Settings Modal & Profile Photo Setup
+function openSettingsModal() {
+    const modal = document.getElementById("settingsModal");
+    if (!modal) return;
+
+    if (currentUser) {
+        document.getElementById("setFirstName").value = currentUser.first_name || "";
+        document.getElementById("setLastName").value = currentUser.last_name || "";
+        
+        const preview = document.getElementById("settingsAvatarPreview");
+        if (currentUser.profile_pic) {
+            preview.src = currentUser.profile_pic;
+            preview.style.display = "block";
+        } else {
+            preview.style.display = "none";
+        }
+    }
+    modal.style.display = "flex";
+}
+
+function closeSettingsModal() {
+    const modal = document.getElementById("settingsModal");
+    if (modal) modal.style.display = "none";
+}
+
+function handleProfilePicUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+        const base64Pic = e.target.result;
+        const preview = document.getElementById("settingsAvatarPreview");
+        preview.src = base64Pic;
+        preview.style.display = "block";
+        preview.dataset.base64 = base64Pic;
+    };
+    reader.readAsDataURL(file);
+}
+
+async function saveSettings(e) {
+    e.preventDefault();
+    if (!currentUser) return;
+
+    const newFirstName = document.getElementById("setFirstName").value.trim();
+    const newLastName = document.getElementById("setLastName").value.trim();
+    const preview = document.getElementById("settingsAvatarPreview");
+    const newPic = preview.dataset.base64 || currentUser.profile_pic || "";
+
+    try {
+        const res = await fetch("/api/update_profile", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                user_id: currentUser.id,
+                first_name: newFirstName,
+                last_name: newLastName,
+                profile_pic: newPic
+            })
+        });
+
+        const data = await res.json();
+        if (data.success) {
+            currentUser.first_name = newFirstName;
+            currentUser.last_name = newLastName;
+            currentUser.full_name = data.full_name;
+            currentUser.profile_pic = newPic;
+
+            localStorage.setItem("nexuz_user_data", JSON.stringify(currentUser));
+            updateSidebarUserDisplay();
+            closeSettingsModal();
+            alert("Profile Settings සාර්ථකව යාවත්කාලීන විය!");
+        }
+    } catch (err) {
+        alert("Settings සුරැකීමට නොහැකි විය!");
     }
 }
 
@@ -141,6 +241,71 @@ function startNewChat() {
     selectedFiles = [];
     conversationHistory = []; // Reset Context Memory
     renderFilePreviews();
+}
+
+// Sidebar History Management (With Delete Feature)
+function loadSavedHistory() {
+    const saved = localStorage.getItem("nexuz_chat_history_list");
+    if (saved) {
+        try {
+            chatHistoryListArray = JSON.parse(saved);
+        } catch (e) {
+            chatHistoryListArray = [];
+        }
+    }
+    renderSidebarHistory();
+}
+
+function saveHistoryToStorage() {
+    localStorage.setItem("nexuz_chat_history_list", JSON.stringify(chatHistoryListArray));
+}
+
+function addHistoryItem(title) {
+    if (!title) return;
+    const newItem = {
+        id: "hist-" + Date.now(),
+        title: title.length > 25 ? title.substring(0, 22) + "..." : title
+    };
+    chatHistoryListArray.unshift(newItem);
+    if (chatHistoryListArray.length > 20) chatHistoryListArray.pop();
+    saveHistoryToStorage();
+    renderSidebarHistory();
+}
+
+function deleteHistoryItem(id, event) {
+    if (event) event.stopPropagation();
+    chatHistoryListArray = chatHistoryListArray.filter(item => item.id !== id);
+    saveHistoryToStorage();
+    renderSidebarHistory();
+}
+
+function renderSidebarHistory() {
+    const container = document.getElementById("chatHistoryList");
+    if (!container) return;
+
+    container.innerHTML = "";
+    if (chatHistoryListArray.length === 0) {
+        container.innerHTML = `
+            <div class="history-item active">
+                <i class="fa-regular fa-message"></i>
+                <span>New Conversation</span>
+            </div>
+        `;
+        return;
+    }
+
+    chatHistoryListArray.forEach((item, index) => {
+        const div = document.createElement("div");
+        div.className = `history-item ${index === 0 ? 'active' : ''}`;
+        div.innerHTML = `
+            <i class="fa-regular fa-message"></i>
+            <span class="hist-title-text">${item.title}</span>
+            <button class="delete-hist-btn" onclick="deleteHistoryItem('${item.id}', event)" title="Delete History">
+                <i class="fa-solid fa-trash-can"></i>
+            </button>
+        `;
+        container.appendChild(div);
+    });
 }
 
 // File Attachment Handler
@@ -248,7 +413,7 @@ function copyCodeToClipboard(codeId, buttonElem) {
     });
 }
 
-// Text Message Sending Logic with Nova Star Loading Animation
+// Text Message Sending Logic with Nexuz Star Loading Animation
 async function sendMessage(presetMessage = null) {
     const input = document.getElementById("userInput");
     const message = presetMessage || input.value.trim();
@@ -258,6 +423,10 @@ async function sendMessage(presetMessage = null) {
     if (!message && selectedFiles.length === 0) return;
 
     if (heroBanner) heroBanner.style.display = "none";
+
+    if (conversationHistory.length === 0) {
+        addHistoryItem(message);
+    }
 
     const currentFiles = [...selectedFiles];
     appendMessage(message, "user-msg", currentFiles);
@@ -271,13 +440,14 @@ async function sendMessage(presetMessage = null) {
 
     if (autoSendTimer) clearTimeout(autoSendTimer);
 
-    // Show Nova Star Loading Animation
+    // Show Nexuz Star Loading Animation
     const loadingHtml = `<div class="nova-star-loader"><i class="fa-solid fa-sparkles"></i></div>`;
     const loadingId = appendMessage(loadingHtml, "bot-msg", [], true);
 
     try {
         const userId = currentUser ? currentUser.id : "guest";
         const firstName = currentUser ? currentUser.first_name : "User";
+        const fullName = currentUser ? (currentUser.full_name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim()) : "User";
         const userEmail = currentUser ? currentUser.email : "";
 
         const res = await fetch("/api/chat", {
@@ -286,6 +456,7 @@ async function sendMessage(presetMessage = null) {
             body: JSON.stringify({
                 user_id: userId,
                 first_name: firstName,
+                full_name: fullName,
                 email: userEmail,
                 message: message + (currentFiles.length > 0 ? ` [Attached Files: ${currentFiles.map(f => f.name).join(", ")}]` : ""),
                 enable_search: searchToggle,
@@ -456,11 +627,12 @@ function startVoiceToText() {
     };
 }
 
-// Fullscreen Nova-X Live Voice Mode with User Greeting
+// Fullscreen Nexuz Live Voice Mode with User Greeting
 function openLiveVoiceMode() {
     isLiveVoiceActive = true;
     document.getElementById("liveVoiceOverlay").classList.add("active");
 
+    // පළමු නමෙන් කතා කිරීම (First Name greeting)
     const firstName = currentUser ? currentUser.first_name : "User";
     const greetingText = `Hi ${firstName}, what shall we do today?`;
 
@@ -517,11 +689,12 @@ function startLiveListening() {
 
 async function processLiveVoiceInput(userText) {
     const statusText = document.getElementById("liveVoiceStatus");
-    if (statusText) statusText.innerText = "Nova-X සිතමින් පවතී...";
+    if (statusText) statusText.innerText = "Nexuz සිතමින් පවතී...";
 
     try {
         const userId = currentUser ? currentUser.id : "guest";
         const firstName = currentUser ? currentUser.first_name : "User";
+        const fullName = currentUser ? (currentUser.full_name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim()) : "User";
         const userEmail = currentUser ? currentUser.email : "";
 
         const res = await fetch("/api/chat", {
@@ -530,6 +703,7 @@ async function processLiveVoiceInput(userText) {
             body: JSON.stringify({
                 user_id: userId,
                 first_name: firstName,
+                full_name: fullName,
                 email: userEmail,
                 message: userText,
                 enable_search: true,

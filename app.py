@@ -14,7 +14,7 @@ from google import genai
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-app = FastAPI(title="Nova-X AI")
+app = FastAPI(title="Nexuz AI")
 
 # PyInstaller / Serverless temporary path එක ලබාගන්නා function එක
 def get_base_path():
@@ -91,7 +91,7 @@ def web_search(query: str) -> str:
         return ""
 
 system_instruction = """
-ඔබේ නම Nova-X වේ. ඔබව නිර්මාණය කළේ චමත් (Chamath / E.M.Chamath Manujaya) විසිනි. 
+ඔබේ නම Nexuz වේ. ඔබව නිර්මාණය කළේ චමත් (Chamath / E.M.Chamath Manujaya) විසිනි. 
 ඔබ ඉතා බුද්ධිමත්, මිත්‍රශීලී (friendly) සහ වෘත්තීයමය (professional) AI සහායකයෙකි.
 
 භාෂා භාවිතය (Language Handling):
@@ -103,7 +103,7 @@ system_instruction = """
 - නම: E.M.Chamath Manujaya (Chamath Manujaya)
 - ඔබව නිර්මාණය කළ Developer සහ අයිතිකරු වන්නේ ඔහුය.
 - කවුරුන් හෝ "ඔයාව හැදුවේ කවුද?", "ඔයාගේ Creator කවුද?", "චමත් කවුද?" හෝ "චමත් මනුජය ගැන කියන්න" කියා ඇසුවොත්, ඔහුව ගෞරවයෙන් සහ අභිමානයෙන් මතක් කරමින්, ඔහුව නිර්මාණය කළ දක්ෂ Software Developer ලෙස හඳුන්වා දෙන්න.
-- කවුරුන් හෝ "ඔයාගේ නම මොකක්ද?" කියා ඇසුවොත් "මගේ නම Nova-X" ලෙස පවසන්න.
+- කවුරුන් හෝ "ඔයාගේ නම මොකක්ද?" කියා ඇසුවොත් "මගේ නම Nexuz" ලෙස පවසන්න.
 
 ප්‍රධාන රීති:
 1. Live Web Search: සජීවීව ලැබෙන තොරතුරු භාවිතයෙන් අසන ලද ප්‍රශ්නයට නිවැරදි, යාවත්කාලීන පිළිතුර සපයන්න.
@@ -118,6 +118,7 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     user_id: Optional[str] = "guest"
     first_name: Optional[str] = "User"
+    full_name: Optional[str] = ""
     email: Optional[str] = ""
     message: str
     enable_search: bool = True
@@ -133,12 +134,18 @@ class AuthRequest(BaseModel):
     country: Optional[str] = None
     purpose: Optional[str] = None
 
+class UpdateProfileRequest(BaseModel):
+    user_id: str
+    first_name: str
+    last_name: str
+    profile_pic: Optional[str] = None
+
 @app.get("/", response_class=HTMLResponse)
 async def serve_index():
     index_path = os.path.join(static_dir, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)
-    return HTMLResponse("<h2>Nova-X Backend is Running Successfully!</h2>")
+    return HTMLResponse("<h2>Nexuz Backend is Running Successfully!</h2>")
 
 @app.post("/api/register")
 async def register(req: AuthRequest):
@@ -150,17 +157,19 @@ async def register(req: AuthRequest):
         return {"success": False, "message": "මෙම Email එකෙන් මීට පෙර Account එකක් සාදා ඇත!"}
     
     is_creator = (req.email.strip().lower() == "chamathmanujaya76@gmail.com")
+    full_name = f"{req.first_name or ''} {req.last_name or ''}".strip()
     
     doc_ref = users_ref.add({
         "first_name": req.first_name,
         "last_name": req.last_name,
-        "full_name": f"{req.first_name or ''} {req.last_name or ''}".strip(),
+        "full_name": full_name,
         "age": req.age,
         "country": req.country,
         "purpose": req.purpose,
         "email": req.email,
         "password": hash_password(req.password),
         "is_creator": is_creator,
+        "profile_pic": "",
         "created_at": datetime.now()
     })
     
@@ -168,8 +177,10 @@ async def register(req: AuthRequest):
         "id": doc_ref[1].id,
         "first_name": req.first_name,
         "last_name": req.last_name,
+        "full_name": full_name,
         "email": req.email,
-        "is_creator": is_creator
+        "is_creator": is_creator,
+        "profile_pic": ""
     }
     return {"success": True, "message": "Account එක සාර්ථකව සෑදුවා!", "user": user_data}
 
@@ -185,8 +196,32 @@ async def login(req: AuthRequest):
         if "password" in u_data:
             del u_data["password"]
         u_data["is_creator"] = (req.email.strip().lower() == "chamathmanujaya76@gmail.com")
+        if "full_name" not in u_data or not u_data["full_name"]:
+            u_data["full_name"] = f"{u_data.get('first_name', '')} {u_data.get('last_name', '')}".strip()
         return {"success": True, "user": u_data}
     return {"success": False, "message": "Email එක හෝ Password එක වැරදියි!"}
+
+@app.post("/api/update_profile")
+async def update_profile(req: UpdateProfileRequest):
+    full_name = f"{req.first_name} {req.last_name}".strip()
+    if db and req.user_id:
+        try:
+            users_ref = db.collection("users").document(req.user_id)
+            users_ref.update({
+                "first_name": req.first_name,
+                "last_name": req.last_name,
+                "full_name": full_name,
+                "profile_pic": req.profile_pic or ""
+            })
+        except Exception as e:
+            print(f"Profile Update Firestore Error: {e}")
+    return {
+        "success": True,
+        "full_name": full_name,
+        "first_name": req.first_name,
+        "last_name": req.last_name,
+        "profile_pic": req.profile_pic or ""
+    }
 
 @app.post("/api/chat")
 async def chat_endpoint(req: ChatRequest):
@@ -209,7 +244,7 @@ async def chat_endpoint(req: ChatRequest):
     if req.history and len(req.history) > 0:
         context_turns = []
         for msg in req.history[-6:]:  # Last 6 conversation turns
-            role_label = "User" if msg.role == "user" else "Nova-X"
+            role_label = "User" if msg.role == "user" else "Nexuz"
             context_turns.append(f"{role_label}: {msg.content}")
         context_str = "[Previous Conversation Memory]:\n" + "\n".join(context_turns) + "\n\n"
 
@@ -217,15 +252,17 @@ async def chat_endpoint(req: ChatRequest):
     if search_context:
         prompt_content = f"[Real-time Web Search Results]:\n{search_context}\n\n" + prompt_content
 
-    # Dynamic system instruction adding user identity check for Creator
+    # Dynamic system instruction adding user identity check for Creator & Full Name
     user_first_name = req.first_name or "User"
+    user_full_name = req.full_name or user_first_name
+
     if req.email and req.email.strip().lower() == "chamathmanujaya76@gmail.com":
         custom_system_instruction = system_instruction + f"\n\nවත්මන් පරිශීලකයා ඔබේ සැබෑ Creator (නිර්මාතෘ) වන E.M.Chamath Manujaya වේ. ඔහුට ඉතාමත් ගෞරවයෙන් 'Sir' හෝ 'Creator' ලෙස අමතා විශේෂ සැලකිල්ලෙන් පිළිතුරු සපයන්න."
     else:
-        custom_system_instruction = system_instruction + f"\n\nපරිශීලකයාගේ නම: {user_first_name}. පරිශීලකයාට අමතන විට ඔහුව/ඇයව මිත්‍රශීලීව {user_first_name} ලෙස පළමු නමින් අමතන්න."
+        custom_system_instruction = system_instruction + f"\n\nපරිශීලකයාගේ සම්පූර්ණ නම: {user_full_name}. පළමු නම: {user_first_name}. පරිශීලකයාට අමතන විට ඔහුව/ඇයව මිත්‍රශීලීව {user_first_name} ලෙස පළමු නමින් අමතන්න."
 
     # Priority Model Cascade for Maximum Speed & Reliability
-    models_to_try = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro","gemini-3.6-flash"]
+    models_to_try = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-3.6-flash"]
     bot_reply = None
     last_error = ""
     is_rate_limit = False
@@ -294,6 +331,7 @@ async def chat_endpoint(req: ChatRequest):
         "reply": bot_reply,
         "search_used": bool(search_context)
     }
+
 if __name__ == '__main__':
     import uvicorn
     uvicorn.run("app:app", host="127.0.0.1", port=8000, reload=True)
