@@ -3,6 +3,8 @@ import sys
 import time
 import hashlib
 import json
+import urllib.request
+import urllib.parse
 from datetime import datetime
 from typing import Optional, List
 from fastapi import FastAPI, Request, HTTPException
@@ -27,13 +29,14 @@ static_dir = os.path.join(base_dir, "static")
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
+# Environment Variables Loading
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-client = None
-if GEMINI_API_KEY:
-    try:
-        client = genai.Client(api_key=GEMINI_API_KEY)
-    except Exception as e:
-        print(f"Gemini Client Init Error: {e}")
+DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
+
+TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY")
+SERPAPI_API_KEY = os.environ.get("SERPAPI_API_KEY")
 
 db = None
 try:
@@ -64,22 +67,219 @@ except Exception as e:
 def hash_password(password: str) -> str:
     return hashlib.sha256(str(password).encode('utf-8')).hexdigest()
 
+# ================= SEARCH PROVIDERS WITH FALLBACK =================
+
+def search_tavily(query: str) -> str:
+    """Primary Search Provider - Tavily AI Search"""
+    api_key = os.environ.get("TAVILY_API_KEY")
+    if not api_key:
+        raise Exception("Tavily API key සකසා නොමැත.")
+    
+    url = "https://api.tavily.com/search"
+    headers = {"Content-Type": "application/json"}
+    payload = json.dumps({
+        "api_key": api_key,
+        "query": query,
+        "max_results": 4
+    }).encode('utf-8')
+
+    req = urllib.request.Request(url, data=payload, headers=headers)
+    with urllib.request.urlopen(req, timeout=8) as response:
+        data = json.loads(response.read().decode('utf-8'))
+        results = []
+        for r in data.get("results", []):
+            title = r.get("title", "")
+            content = r.get("content", "")
+            if title or content:
+                results.append(f"📌 Title: {title}\nSnippet: {content}")
+        return "\n\n".join(results)
+
+def search_serpapi(query: str) -> str:
+    """Fallback Search Provider 1 - SerpAPI"""
+    api_key = os.environ.get("SERPAPI_API_KEY")
+    if not api_key:
+        raise Exception("SerpAPI Key සකසා නොමැත.")
+    
+    params = urllib.parse.urlencode({
+        "q": query,
+        "api_key": api_key,
+        "engine": "google"
+    })
+    url = f"https://serpapi.com/search.json?{params}"
+    req = urllib.request.Request(url)
+    with urllib.request.urlopen(req, timeout=8) as response:
+        data = json.loads(response.read().decode('utf-8'))
+        results = []
+        for r in data.get("organic_results", [])[:4]:
+            title = r.get("title", "")
+            snippet = r.get("snippet", "")
+            if title or snippet:
+                results.append(f"📌 Title: {title}\nSnippet: {snippet}")
+        return "\n\n".join(results)
+
+def search_ddg(query: str) -> str:
+    """Fallback Search Provider 2 - DuckDuckGo"""
+    results = []
+    clean_query = query.strip()
+    with DDGS() as ddgs:
+        for r in ddgs.text(clean_query, max_results=4):
+            title = r.get('title', '')
+            snippet = r.get('body', '')
+            if title or snippet:
+                results.append(f"📌 Title: {title}\nSnippet: {snippet}")
+    return "\n\n".join(results)
+
 def web_search(query: str) -> str:
+    """Ordered Fallback Search Orchestrator"""
     if not query or len(query.strip()) < 2:
         return ""
-    try:
-        results = []
-        clean_query = query.strip()
-        with DDGS() as ddgs:
-            for r in ddgs.text(clean_query, max_results=4):
-                title = r.get('title', '')
-                snippet = r.get('body', '')
-                if title or snippet:
-                    results.append(f"📌 Title: {title}\nSnippet: {snippet}")
-        return "\n\n".join(results)
-    except Exception as e:
-        print(f"Search Error: {e}")
-        return ""
+    
+    # Search Priority: Tavily -> SerpAPI -> DuckDuckGo
+    search_providers = [
+        ("Tavily AI Search", search_tavily),
+        ("SerpAPI", search_serpapi),
+        ("DuckDuckGo Search", search_ddg)
+    ]
+
+    for provider_name, search_fn in search_providers:
+        try:
+            res = search_fn(query)
+            if res and len(res.strip()) > 0:
+                print(f"Search Succeeded using [{provider_name}]")
+                return res
+        except Exception as e:
+            print(f"Search Provider [{provider_name}] Failed: {e}")
+
+    return ""
+
+# ================= AI MODEL PROVIDERS WITH FALLBACK =================
+
+def call_gemini(prompt_content: str, custom_system_instruction: str) -> str:
+    """Primary AI Provider (Level 10) - Gemini API"""
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise Exception("Gemini API Key නොමැත.")
+    
+    client = genai.Client(api_key=api_key)
+    models_to_try = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
+    
+    for model_name in models_to_try:
+        try:
+            response = client.models.generate_content(
+                model=model_name,
+                contents=prompt_content,
+                config={
+                    "system_instruction": custom_system_instruction,
+                    "temperature": 0.7,
+                }
+            )
+            if response and response.text:
+                return response.text
+        except Exception as e:
+            print(f"Gemini error ({model_name}): {e}")
+            
+    raise Exception("සියලුම Gemini Models අසාර්ථක විය.")
+
+def call_deepseek(prompt_content: str, custom_system_instruction: str) -> str:
+    """Fallback AI Provider 1 (Level 9.5) - DeepSeek API"""
+    api_key = os.environ.get("DEEPSEEK_API_KEY")
+    if not api_key:
+        raise Exception("DeepSeek API Key නොමැත.")
+    
+    url = "https://api.deepseek.com/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    payload = json.dumps({
+        "model": "deepseek-chat",
+        "messages": [
+            {"role": "system", "content": custom_system_instruction},
+            {"role": "user", "content": prompt_content}
+        ],
+        "temperature": 0.7
+    }).encode('utf-8')
+
+    req = urllib.request.Request(url, data=payload, headers=headers)
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        res_data = json.loads(resp.read().decode('utf-8'))
+        return res_data["choices"][0]["message"]["content"]
+
+def call_groq(prompt_content: str, custom_system_instruction: str) -> str:
+    """Fallback AI Provider 2 (Level 8.5) - Groq API"""
+    api_key = os.environ.get("GROQ_API_KEY")
+    if not api_key:
+        raise Exception("Groq API Key නොමැත.")
+    
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    payload = json.dumps({
+        "model": "llama-3.3-70b-versatile",
+        "messages": [
+            {"role": "system", "content": custom_system_instruction},
+            {"role": "user", "content": prompt_content}
+        ],
+        "temperature": 0.7
+    }).encode('utf-8')
+
+    req = urllib.request.Request(url, data=payload, headers=headers)
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        res_data = json.loads(resp.read().decode('utf-8'))
+        return res_data["choices"][0]["message"]["content"]
+
+def call_openrouter(prompt_content: str, custom_system_instruction: str) -> str:
+    """Fallback AI Provider 3 (Level 7.5) - OpenRouter API"""
+    api_key = os.environ.get("OPENROUTER_API_KEY")
+    if not api_key:
+        raise Exception("OpenRouter API Key නොමැත.")
+    
+    url = "https://openrouter.ai/api/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+    payload = json.dumps({
+        "model": "google/gemini-2.5-flash:free",
+        "messages": [
+            {"role": "system", "content": custom_system_instruction},
+            {"role": "user", "content": prompt_content}
+        ],
+        "temperature": 0.7
+    }).encode('utf-8')
+
+    req = urllib.request.Request(url, data=payload, headers=headers)
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        res_data = json.loads(resp.read().decode('utf-8'))
+        return res_data["choices"][0]["message"]["content"]
+
+def generate_ai_response_fallback(prompt_content: str, custom_system_instruction: str):
+    """Ordered Fallback AI Engine (Gemini -> DeepSeek -> Groq -> OpenRouter)"""
+    ai_providers = [
+        ("Gemini API (Primary - Lvl 10)", call_gemini),
+        ("DeepSeek API (Fallback 1 - Lvl 9.5)", call_deepseek),
+        ("Groq API (Fallback 2 - Lvl 8.5)", call_groq),
+        ("OpenRouter API (Fallback 3 - Lvl 7.5)", call_openrouter)
+    ]
+
+    errors = []
+    for provider_name, provider_fn in ai_providers:
+        try:
+            print(f"Attempting AI Response via [{provider_name}]...")
+            reply = provider_fn(prompt_content, custom_system_instruction)
+            if reply and len(reply.strip()) > 0:
+                print(f"Successfully generated response via [{provider_name}]")
+                return reply, provider_name
+        except Exception as e:
+            err_msg = str(e)
+            print(f"AI Provider [{provider_name}] Error: {err_msg}")
+            errors.append(f"{provider_name}: {err_msg}")
+
+    raise Exception(f"සියලුම AI Providers ක්‍රියා විරහිතයි: {'; '.join(errors)}")
+
+# ================= SYSTEM INSTRUCTIONS & MODELS =================
 
 system_instruction = """
 ඔබේ නම Nexuz වේ. ඔබව නිර්මාණය කළේ චමත් (Chamath / E.M.Chamath Manujaya) විසිනි. 
@@ -133,6 +333,8 @@ class UpdateProfileRequest(BaseModel):
     password: Optional[str] = None
     voice_preference: Optional[str] = "male"
     profile_pic: Optional[str] = None
+
+# ================= API ENDPOINTS =================
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_index():
@@ -225,14 +427,6 @@ async def update_profile(req: UpdateProfileRequest):
 
 @app.post("/api/chat")
 async def chat_endpoint(req: ChatRequest):
-    if not client:
-        return {
-            "success": False,
-            "error_type": "missing_api_key",
-            "reply": "Gemini API Key සකසා නොමැත. කරුණාකර Environment Variables (GEMINI_API_KEY) පරීක්ෂා කරන්න.",
-            "search_used": False
-        }
-
     user_prompt = req.message
     search_context = ""
 
@@ -259,47 +453,18 @@ async def chat_endpoint(req: ChatRequest):
     else:
         custom_system_instruction = system_instruction + f"\n\nපරිශීලකයාගේ සම්පූර්ණ නම: {user_full_name}. පළමු නම: {user_first_name}. පරිශීලකයාට අමතන විට ඔහුව/ඇයව මිත්‍රශීලීව {user_first_name} ලෙස පළමු නමින් අමතන්න."
 
-    models_to_try = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-3.6-flash"]
-    bot_reply = None
-    last_error = ""
-    is_rate_limit = False
-
-    for model_name in models_to_try:
-        try:
-            response = client.models.generate_content(
-                model=model_name,
-                contents=prompt_content,
-                config={
-                    "system_instruction": custom_system_instruction,
-                    "temperature": 0.7,
-                }
-            )
-            if response and response.text:
-                bot_reply = response.text
-                break
-        except Exception as e:
-            err_msg = str(e)
-            last_error = err_msg
-            print(f"API Error ({model_name}): {err_msg}")
-            if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg or "Quota" in err_msg.lower() or "limit" in err_msg.lower():
-                is_rate_limit = True
-            time.sleep(0.3)
-
-    if not bot_reply:
-        if is_rate_limit:
-            return {
-                "success": False,
-                "error_type": "rate_limit",
-                "reply": "⚠️ **Gemini API Key Limit (Quota) එක ඉක්මවා ඇත!**\n\nඔබගේ API Key එකෙහි නොමිලේ ලැබෙන Request Limit එක තාවකාලිකව පිරී ඇත. කරුණාකර විනාඩි කිහිපයකින් නැවත උත්සාහ කරන්න.",
-                "search_used": False
-            }
+    try:
+        # Fallback AI System Call
+        bot_reply, active_provider = generate_ai_response_fallback(prompt_content, custom_system_instruction)
+    except Exception as e:
         return {
             "success": False,
             "error_type": "api_error",
-            "reply": f"සන්නිවේදන දෝෂයක් සිදු විය. Error: {last_error}",
+            "reply": f"සන්නිවේදන දෝෂයක් සිදු විය. සියලුම AI Services අවහිර වී ඇත. Error: {str(e)}",
             "search_used": False
         }
 
+    # Save to Firestore if database is connected
     if db and req.session_id and req.user_id != "guest":
         try:
             session_ref = db.collection("chat_sessions").document(req.session_id)
@@ -326,7 +491,8 @@ async def chat_endpoint(req: ChatRequest):
     return {
         "success": True,
         "reply": bot_reply,
-        "search_used": bool(search_context)
+        "search_used": bool(search_context),
+        "provider": active_provider
     }
 
 if __name__ == '__main__':
