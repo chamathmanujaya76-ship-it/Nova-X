@@ -5,6 +5,7 @@ let selectedFiles = [];
 let currentUser = null;
 let conversationHistory = []; // Context Memory Store
 let chatHistoryListArray = []; // Sidebar History Items
+let activeSessionId = null;
 
 // Audio Visualizer Context & Nodes
 let audioCtx = null;
@@ -162,6 +163,15 @@ function openSettingsModal() {
     if (currentUser) {
         document.getElementById("setFirstName").value = currentUser.first_name || "";
         document.getElementById("setLastName").value = currentUser.last_name || "";
+        document.getElementById("setAge").value = currentUser.age || "";
+        document.getElementById("setCountry").value = currentUser.country || "";
+        document.getElementById("setEmail").value = currentUser.email || "";
+        document.getElementById("setPassword").value = "";
+        
+        const voiceSelect = document.getElementById("voiceSelect");
+        if (voiceSelect) {
+            voiceSelect.value = currentUser.voice_preference || "male";
+        }
         
         const preview = document.getElementById("settingsAvatarPreview");
         if (currentUser.profile_pic) {
@@ -198,8 +208,9 @@ async function saveSettings(e) {
     e.preventDefault();
     if (!currentUser) return;
 
-    const newFirstName = document.getElementById("setFirstName").value.trim();
-    const newLastName = document.getElementById("setLastName").value.trim();
+    const newAge = document.getElementById("setAge").value.trim();
+    const newPassword = document.getElementById("setPassword").value.trim();
+    const voicePref = document.getElementById("voiceSelect").value;
     const preview = document.getElementById("settingsAvatarPreview");
     const newPic = preview.dataset.base64 || currentUser.profile_pic || "";
 
@@ -209,17 +220,19 @@ async function saveSettings(e) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 user_id: currentUser.id,
-                first_name: newFirstName,
-                last_name: newLastName,
+                first_name: currentUser.first_name,
+                last_name: currentUser.last_name,
+                age: newAge,
+                password: newPassword,
+                voice_preference: voicePref,
                 profile_pic: newPic
             })
         });
 
         const data = await res.json();
         if (data.success) {
-            currentUser.first_name = newFirstName;
-            currentUser.last_name = newLastName;
-            currentUser.full_name = data.full_name;
+            currentUser.age = newAge;
+            currentUser.voice_preference = voicePref;
             currentUser.profile_pic = newPic;
 
             localStorage.setItem("nexuz_user_data", JSON.stringify(currentUser));
@@ -259,6 +272,7 @@ function startNewChat() {
     if (heroBanner) heroBanner.style.display = "flex";
     selectedFiles = [];
     conversationHistory = [];
+    activeSessionId = "sess-" + Date.now();
     renderFilePreviews();
     closeMobileSidebar();
 }
@@ -280,11 +294,17 @@ function saveHistoryToStorage() {
     localStorage.setItem("nexuz_chat_history_list", JSON.stringify(chatHistoryListArray));
 }
 
-function addHistoryItem(title) {
+function addHistoryItem(title, sessionId) {
     if (!title) return;
+    const id = sessionId || "hist-" + Date.now();
+    const existingIndex = chatHistoryListArray.findIndex(item => item.id === id);
+    
+    if (existingIndex !== -1) return;
+
     const newItem = {
-        id: "hist-" + Date.now(),
-        title: title.length > 25 ? title.substring(0, 22) + "..." : title
+        id: id,
+        title: title.length > 25 ? title.substring(0, 22) + "..." : title,
+        messages: [...conversationHistory]
     };
     chatHistoryListArray.unshift(newItem);
     if (chatHistoryListArray.length > 20) chatHistoryListArray.pop();
@@ -292,11 +312,33 @@ function addHistoryItem(title) {
     renderSidebarHistory();
 }
 
+function loadHistorySession(id) {
+    const session = chatHistoryListArray.find(item => item.id === id);
+    if (!session) return;
+
+    activeSessionId = session.id;
+    conversationHistory = [...(session.messages || [])];
+
+    const chatContainer = document.getElementById("chatContainer");
+    const heroBanner = document.getElementById("heroBanner");
+    chatContainer.innerHTML = "";
+    if (heroBanner) heroBanner.style.display = "none";
+
+    conversationHistory.forEach(msg => {
+        const className = msg.role === "user" ? "user-msg" : "bot-msg";
+        appendMessage(msg.content, className, [], false);
+    });
+
+    renderSidebarHistory();
+    closeMobileSidebar();
+}
+
 function deleteHistoryItem(id, event) {
     if (event) event.stopPropagation();
     chatHistoryListArray = chatHistoryListArray.filter(item => item.id !== id);
     saveHistoryToStorage();
     renderSidebarHistory();
+    if (activeSessionId === id) startNewChat();
 }
 
 function renderSidebarHistory() {
@@ -306,7 +348,7 @@ function renderSidebarHistory() {
     container.innerHTML = "";
     if (chatHistoryListArray.length === 0) {
         container.innerHTML = `
-            <div class="history-item active">
+            <div class="history-item active" onclick="startNewChat()">
                 <i class="fa-regular fa-message"></i>
                 <span>New Conversation</span>
             </div>
@@ -314,9 +356,11 @@ function renderSidebarHistory() {
         return;
     }
 
-    chatHistoryListArray.forEach((item, index) => {
+    chatHistoryListArray.forEach((item) => {
+        const isActive = item.id === activeSessionId;
         const div = document.createElement("div");
-        div.className = `history-item ${index === 0 ? 'active' : ''}`;
+        div.className = `history-item ${isActive ? 'active' : ''}`;
+        div.onclick = () => loadHistorySession(item.id);
         div.innerHTML = `
             <i class="fa-regular fa-message"></i>
             <span class="hist-title-text">${item.title}</span>
@@ -429,14 +473,19 @@ async function sendMessage(presetMessage = null) {
 
     if (heroBanner) heroBanner.style.display = "none";
 
+    if (!activeSessionId) {
+        activeSessionId = "sess-" + Date.now();
+    }
+
     if (conversationHistory.length === 0) {
-        addHistoryItem(message);
+        addHistoryItem(message, activeSessionId);
     }
 
     const currentFiles = [...selectedFiles];
     appendMessage(message, "user-msg", currentFiles);
 
     conversationHistory.push({ role: "user", content: message });
+    updateHistoryMessages(activeSessionId);
 
     input.value = "";
     selectedFiles = [];
@@ -444,7 +493,7 @@ async function sendMessage(presetMessage = null) {
 
     if (autoSendTimer) clearTimeout(autoSendTimer);
 
-    // Star Loading Animation Insertion
+    // Star Loading Animation Insertion (Nexuz Star Animation)
     const loadingHtml = `<div class="nova-star-loader"><i class="fa-solid fa-sparkles"></i></div>`;
     const loadingId = appendMessage(loadingHtml, "bot-msg", [], true);
 
@@ -464,6 +513,7 @@ async function sendMessage(presetMessage = null) {
                 email: userEmail,
                 message: message + (currentFiles.length > 0 ? ` [Attached Files: ${currentFiles.map(f => f.name).join(", ")}]` : ""),
                 enable_search: searchToggle,
+                session_id: activeSessionId,
                 history: conversationHistory
             })
         });
@@ -488,6 +538,7 @@ async function sendMessage(presetMessage = null) {
 
         const replyText = data.reply || "උත්තරයක් ලබාගැනීමට නොහැකි විය.";
         conversationHistory.push({ role: "assistant", content: replyText });
+        updateHistoryMessages(activeSessionId);
 
         if (botMsgElem) {
             botMsgElem.innerHTML = renderMarkdown(replyText);
@@ -495,6 +546,14 @@ async function sendMessage(presetMessage = null) {
     } catch (err) {
         const botMsgElem = document.getElementById(loadingId);
         if (botMsgElem) botMsgElem.innerText = "සන්නිවේදන දෝෂයක් සිදු විය. කරුණාකර නැවත උත්සාහ කරන්න.";
+    }
+}
+
+function updateHistoryMessages(sessionId) {
+    const session = chatHistoryListArray.find(item => item.id === sessionId);
+    if (session) {
+        session.messages = [...conversationHistory];
+        saveHistoryToStorage();
     }
 }
 
@@ -623,7 +682,7 @@ function startVoiceToText() {
     };
 }
 
-// Web Audio API Sound-to-Animation Visualizer Engine
+// Web Audio API Sound-to-Animation Visualizer Engine (Matching exact purple orb animation)
 async function initAudioVisualizer() {
     try {
         micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
@@ -650,29 +709,28 @@ function visualizeAudio() {
     for (let i = 0; i < dataArray.length; i++) {
         sum += dataArray[i];
     }
-    const average = sum / dataArray.length; // Voice frequency level
+    const average = sum / dataArray.length;
 
     const coreOrb = document.getElementById("coreOrb");
-    const wave1 = document.getElementById("wave1");
-    const wave2 = document.getElementById("wave2");
-    const wave3 = document.getElementById("wave3");
+    const soundWaveGlow = document.getElementById("soundWaveGlow");
 
-    // Dynamic Sound Animation Scaling
-    const scale = 1 + (average / 120); 
-    const glow = 20 + (average * 0.8);
+    const scale = 1 + (average / 90); 
+    const glow = 25 + (average * 1.2);
 
     if (coreOrb) {
         coreOrb.style.transform = `scale(${scale})`;
-        coreOrb.style.boxShadow = `0 0 ${glow}px #7B00FF, inset 0 0 ${glow + 10}px #0044FF`;
+        coreOrb.style.boxShadow = `0 0 ${glow + 20}px #8B00FF, inset 0 0 ${glow + 10}px #3A0088`;
     }
-    if (wave1) wave1.style.transform = `scale(${scale * 1.05})`;
-    if (wave2) wave2.style.transform = `scale(${scale * 1.1})`;
-    if (wave3) wave3.style.transform = `scale(${scale * 1.15})`;
+
+    if (soundWaveGlow) {
+        soundWaveGlow.style.transform = `scale(${scale * 1.25})`;
+        soundWaveGlow.style.opacity = Math.min(0.9, average / 40);
+    }
 
     animFrameId = requestAnimationFrame(visualizeAudio);
 }
 
-// Fullscreen Sci-Fi Live Voice Mode with Speech Synthesis & Sound Animation
+// Fullscreen Sci-Fi Live Voice Mode with Speech Synthesis & Selected Male/Female Voice
 function openLiveVoiceMode() {
     isLiveVoiceActive = true;
     document.getElementById("liveVoiceOverlay").classList.add("active");
@@ -701,10 +759,23 @@ function closeLiveVoiceMode() {
 
 function speakText(text) {
     if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel(); // Reset previous voice
+        window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = "en-US";
         utterance.rate = 1.0;
+
+        const selectedGender = (currentUser && currentUser.voice_preference) ? currentUser.voice_preference : "male";
+        const voices = window.speechSynthesis.getVoices();
+
+        if (voices.length > 0) {
+            let matchedVoice = null;
+            if (selectedGender === "female") {
+                matchedVoice = voices.find(v => v.name.includes("Female") || v.name.includes("Zira") || v.name.includes("Google UK English Female") || v.name.includes("Samantha"));
+            } else {
+                matchedVoice = voices.find(v => v.name.includes("Male") || v.name.includes("David") || v.name.includes("Google UK English Male") || v.name.includes("Alex"));
+            }
+            if (matchedVoice) utterance.voice = matchedVoice;
+        }
+
         window.speechSynthesis.speak(utterance);
     }
 }
@@ -761,6 +832,7 @@ async function processLiveVoiceInput(userText) {
                 email: userEmail,
                 message: userText,
                 enable_search: true,
+                session_id: activeSessionId,
                 history: conversationHistory
             })
         });
@@ -769,7 +841,7 @@ async function processLiveVoiceInput(userText) {
         const reply = data.reply || "සමාවන්න, මට එය තේරුණේ නැත.";
 
         if (statusText) statusText.innerText = reply;
-        speakText(reply); // Speech Output for Live Voice Mode
+        speakText(reply);
 
         setTimeout(startLiveListening, 4500);
     } catch (err) {

@@ -90,38 +90,74 @@
         </div>
     </div>
 
-    <!-- PROFILE SETTINGS MODAL -->
+    <!-- SETTINGS & PROFILE MODAL -->
     <div class="auth-modal-overlay" id="settingsModal" style="display: none;">
-        <div class="auth-card">
+        <div class="auth-card settings-card">
             <button class="close-settings-btn" onclick="closeSettingsModal()"><i class="fa-solid fa-xmark"></i></button>
             <div class="auth-header">
-                <h2><i class="fa-solid fa-gear" style="color: #7B00FF;"></i> Profile Settings</h2>
-                <p>ඔබගේ Profile එක සකසා ගන්න</p>
+                <h2><i class="fa-solid fa-gear" style="color: #7B00FF;"></i> Settings</h2>
             </div>
 
-            <form class="auth-form" onsubmit="saveSettings(event)">
+            <!-- Profile Section Upper Part -->
+            <div class="settings-section">
+                <h3 class="settings-section-title"><i class="fa-solid fa-user"></i> Profile</h3>
+                
                 <div class="profile-pic-upload-area">
-                    <div class="avatar-preview-box">
+                    <div class="avatar-preview-box" onclick="document.getElementById('profilePicInput').click()" title="Change Profile Picture">
                         <img id="settingsAvatarPreview" src="" alt="Profile Preview" style="display: none;">
+                        <i class="fa-solid fa-camera camera-overlay-icon"></i>
                     </div>
-                    <label class="upload-pic-btn">
-                        <i class="fa-solid fa-camera"></i> Profile Picture එකක් තෝරන්න
-                        <input type="file" id="profilePicInput" accept="image/*" style="display: none;" onchange="handleProfilePicUpload(event)">
-                    </label>
+                    <input type="file" id="profilePicInput" accept="image/*" style="display: none;" onchange="handleProfilePicUpload(event)">
                 </div>
 
-                <div class="form-group">
-                    <label>පළමු නම (First Name)</label>
-                    <input type="text" id="setFirstName" required>
-                </div>
+                <form class="auth-form" onsubmit="saveSettings(event)">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>පළමු නම (First Name)</label>
+                            <input type="text" id="setFirstName" readonly disabled class="readonly-input">
+                        </div>
+                        <div class="form-group">
+                            <label>දෙවන නම (Last Name)</label>
+                            <input type="text" id="setLastName" readonly disabled class="readonly-input">
+                        </div>
+                    </div>
 
-                <div class="form-group">
-                    <label>දෙවන නම (Last Name)</label>
-                    <input type="text" id="setLastName" required>
-                </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>වයස (Age)</label>
+                            <input type="number" id="setAge" min="10" max="100" required>
+                        </div>
+                        <div class="form-group">
+                            <label>රට (Country)</label>
+                            <input type="text" id="setCountry" readonly disabled class="readonly-input">
+                        </div>
+                    </div>
 
-                <button type="submit" class="auth-btn">Save Changes</button>
-            </form>
+                    <div class="form-group">
+                        <label>විද්‍යුත් තැපෑල (Email)</label>
+                        <input type="email" id="setEmail" readonly disabled class="readonly-input">
+                    </div>
+
+                    <div class="form-group">
+                        <label>මුරපදය (Password)</label>
+                        <input type="password" id="setPassword" placeholder="නව මුරපදය (වෙනස් කිරීමට පමණක් ටයිප් කරන්න)">
+                    </div>
+
+                    <!-- Nexuz Voices Section Inside Settings -->
+                    <div class="settings-section voices-section">
+                        <h3 class="settings-section-title"><i class="fa-solid fa-microphone-lines"></i> Nexuz Voices</h3>
+                        <div class="form-group">
+                            <label>AI Voice Gender Selection</label>
+                            <select id="voiceSelect">
+                                <option value="male">Male Voice (පිරිමි හඬ)</option>
+                                <option value="female">Female Voice (ගැහැණු හඬ)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="auth-btn">Save Changes</button>
+                </form>
+            </div>
         </div>
     </div>
 
@@ -130,8 +166,8 @@
 
     <!-- MAIN APP LAYOUT -->
     <div class="app-container">
-        <!-- Left Sidebar (Gemini Style) -->
-        <aside class="sidebar" id="sidebar">
+        <!-- Left Sidebar (Gemini Style - Default Closed) -->
+        <aside class="sidebar collapsed" id="sidebar">
             <div class="sidebar-top">
                 <button class="sidebar-toggle-btn" onclick="toggleSidebar()" title="Toggle Sidebar">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -164,8 +200,7 @@
             <!-- Dynamic User Profile & Settings -->
             <div class="sidebar-bottom">
                 <div class="user-profile">
-                    <!-- Only Profile Picture is clickable for Settings -->
-                    <div class="user-avatar-wrapper" onclick="openSettingsModal()" title="Change Profile Picture">
+                    <div class="user-avatar-wrapper" onclick="openSettingsModal()" title="Open Profile Settings">
                         <img id="userAvatarImg" class="user-avatar-img" src="" style="display: none;" alt="User Profile">
                         <i class="fa-solid fa-circle-user profile-icon" id="defaultUserIcon"></i>
                     </div>
@@ -274,18 +309,19 @@
 
         <div class="sci-fi-stage">
             <div class="orb-visualizer-container" id="orbContainer">
-                <div class="outer-wave-ring wave-particles" id="waveParticles"></div>
-                <div class="outer-wave-ring wave-3" id="wave3"></div>
-                <div class="outer-wave-ring wave-2" id="wave2"></div>
-                <div class="outer-wave-ring wave-1" id="wave1"></div>
-                <div class="core-sci-fi-orb" id="coreOrb"></div>
+                <div class="sci-fi-ring ring-outer"></div>
+                <div class="sci-fi-ring ring-mid"></div>
+                <div class="sci-fi-ring ring-inner"></div>
+                <div class="sound-wave-glow" id="soundWaveGlow"></div>
+                <div class="core-sci-fi-orb" id="coreOrb">
+                    <div class="orb-core-pulse"></div>
+                </div>
             </div>
             <div class="voice-status-text" id="liveVoiceStatus">සවන්දෙමින් පවතී... කතා කරන්න...</div>
             <div class="transcript-preview" id="liveTranscript"></div>
         </div>
 
         <div class="live-controls">
-            <!-- Sleek Gemini Style Mic Button (No Green Fill) -->
             <button class="live-mic-toggle-btn active" id="liveMicToggle" onclick="toggleLiveMic()" title="Toggle Mic">
                 <i class="fa-solid fa-microphone"></i>
             </button>

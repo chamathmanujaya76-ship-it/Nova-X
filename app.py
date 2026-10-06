@@ -16,7 +16,6 @@ from firebase_admin import credentials, firestore
 
 app = FastAPI(title="Nexuz AI")
 
-# PyInstaller / Serverless temporary path එක ලබාගන්නා function එක
 def get_base_path():
     if getattr(sys, 'frozen', False):
         return sys._MEIPASS
@@ -25,11 +24,9 @@ def get_base_path():
 base_dir = get_base_path()
 static_dir = os.path.join(base_dir, "static")
 
-# static files mount කිරීම (Directory එක තිබේ නම් පමණක් Mount වේ)
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
-# Google Gemini Client Config (Environment Variable මගින්)
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 client = None
 if GEMINI_API_KEY:
@@ -38,24 +35,19 @@ if GEMINI_API_KEY:
     except Exception as e:
         print(f"Gemini Client Init Error: {e}")
 
-# Firebase Init (Environment Variable හෝ File path මගින්)
 db = None
 try:
     if not firebase_admin._apps:
-        # 1. ප්‍රථමයෙන් Render / Vercel Environment Variable එකක JSON String එක ඇත්දැයි බලයි
         firebase_json_env = os.environ.get("FIREBASE_CREDENTIALS_JSON")
-        
         if firebase_json_env:
             cred_dict = json.loads(firebase_json_env)
             cred = credentials.Certificate(cred_dict)
             firebase_admin.initialize_app(cred)
             db = firestore.client()
-            print("Firebase Database එක Environment Variable මගින් සාර්ථකව සම්බන්ධ විය.")
+            print("Firebase Database එක Environment Variable මගින් සම්බන්ධ විය.")
         else:
-            # 2. නැතහොත් Local Directory එකේ File එක ඇත්දැයි බලයි
             json_filename = "nova-x-6ef72-firebase-adminsdk-fbsvc-f00ed803ec.json"
             json_path = os.path.join(base_dir, json_filename)
-            
             if not os.path.exists(json_path):
                 json_path = json_filename
 
@@ -63,9 +55,9 @@ try:
                 cred = credentials.Certificate(json_path)
                 firebase_admin.initialize_app(cred)
                 db = firestore.client()
-                print("Firebase Database එක File මගින් සාර්ථකව සම්බන්ධ විය.")
+                print("Firebase Database එක File මගින් සම්බන්ධ විය.")
             else:
-                print(f"Firebase Credentials හමු නොවුණි.")
+                print("Firebase Credentials හමු නොවුණි.")
 except Exception as e:
     print(f"Firebase Connection Warning: {e}")
 
@@ -73,7 +65,6 @@ def hash_password(password: str) -> str:
     return hashlib.sha256(str(password).encode('utf-8')).hexdigest()
 
 def web_search(query: str) -> str:
-    """DuckDuckGo හරහා සජීවීව අන්තර්ජාලය සෙවුම් කිරීම"""
     if not query or len(query.strip()) < 2:
         return ""
     try:
@@ -138,6 +129,9 @@ class UpdateProfileRequest(BaseModel):
     user_id: str
     first_name: str
     last_name: str
+    age: Optional[str] = None
+    password: Optional[str] = None
+    voice_preference: Optional[str] = "male"
     profile_pic: Optional[str] = None
 
 @app.get("/", response_class=HTMLResponse)
@@ -169,6 +163,7 @@ async def register(req: AuthRequest):
         "email": req.email,
         "password": hash_password(req.password),
         "is_creator": is_creator,
+        "voice_preference": "male",
         "profile_pic": "",
         "created_at": datetime.now()
     })
@@ -178,8 +173,11 @@ async def register(req: AuthRequest):
         "first_name": req.first_name,
         "last_name": req.last_name,
         "full_name": full_name,
+        "age": req.age,
+        "country": req.country,
         "email": req.email,
         "is_creator": is_creator,
+        "voice_preference": "male",
         "profile_pic": ""
     }
     return {"success": True, "message": "Account එක සාර්ථකව සෑදුවා!", "user": user_data}
@@ -203,24 +201,26 @@ async def login(req: AuthRequest):
 
 @app.post("/api/update_profile")
 async def update_profile(req: UpdateProfileRequest):
-    full_name = f"{req.first_name} {req.last_name}".strip()
+    update_dict = {
+        "profile_pic": req.profile_pic or ""
+    }
+    if req.age:
+        update_dict["age"] = req.age
+    if req.password and len(req.password.strip()) > 0:
+        update_dict["password"] = hash_password(req.password.strip())
+    if req.voice_preference:
+        update_dict["voice_preference"] = req.voice_preference
+
     if db and req.user_id:
         try:
             users_ref = db.collection("users").document(req.user_id)
-            users_ref.update({
-                "first_name": req.first_name,
-                "last_name": req.last_name,
-                "full_name": full_name,
-                "profile_pic": req.profile_pic or ""
-            })
+            users_ref.update(update_dict)
         except Exception as e:
             print(f"Profile Update Firestore Error: {e}")
     return {
         "success": True,
-        "full_name": full_name,
-        "first_name": req.first_name,
-        "last_name": req.last_name,
-        "profile_pic": req.profile_pic or ""
+        "profile_pic": req.profile_pic or "",
+        "voice_preference": req.voice_preference
     }
 
 @app.post("/api/chat")
@@ -239,11 +239,10 @@ async def chat_endpoint(req: ChatRequest):
     if req.enable_search:
         search_context = web_search(user_prompt)
 
-    # Context Memory Building (Recent Conversation History Buffer)
     context_str = ""
     if req.history and len(req.history) > 0:
         context_turns = []
-        for msg in req.history[-6:]:  # Last 6 conversation turns
+        for msg in req.history[-6:]:
             role_label = "User" if msg.role == "user" else "Nexuz"
             context_turns.append(f"{role_label}: {msg.content}")
         context_str = "[Previous Conversation Memory]:\n" + "\n".join(context_turns) + "\n\n"
@@ -252,7 +251,6 @@ async def chat_endpoint(req: ChatRequest):
     if search_context:
         prompt_content = f"[Real-time Web Search Results]:\n{search_context}\n\n" + prompt_content
 
-    # Dynamic system instruction adding user identity check for Creator & Full Name
     user_first_name = req.first_name or "User"
     user_full_name = req.full_name or user_first_name
 
@@ -261,7 +259,6 @@ async def chat_endpoint(req: ChatRequest):
     else:
         custom_system_instruction = system_instruction + f"\n\nපරිශීලකයාගේ සම්පූර්ණ නම: {user_full_name}. පළමු නම: {user_first_name}. පරිශීලකයාට අමතන විට ඔහුව/ඇයව මිත්‍රශීලීව {user_first_name} ලෙස පළමු නමින් අමතන්න."
 
-    # Priority Model Cascade for Maximum Speed & Reliability
     models_to_try = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro", "gemini-3.6-flash"]
     bot_reply = None
     last_error = ""

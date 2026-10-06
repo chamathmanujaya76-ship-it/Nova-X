@@ -33,7 +33,7 @@ body {
     z-index: 99;
 }
 
-/* Pitch Black Gemini Style Sidebar */
+/* Pitch Black Gemini Style Sidebar - Default Collapsed/Closed */
 .sidebar {
     width: 260px;
     height: 100vh;
@@ -408,7 +408,7 @@ body {
     margin-top: 8px;
 }
 
-/* Nexuz Star Loading Animation Fix */
+/* Nexuz Star Loading Animation Fix (Number 1 Issue Fix) */
 @keyframes starPulseGlow {
     0% { transform: rotate(0deg) scale(1); filter: drop-shadow(0 0 10px #7B00FF); }
     50% { transform: rotate(180deg) scale(1.4); filter: drop-shadow(0 0 35px #7B00FF) drop-shadow(0 0 50px #0044FF); }
@@ -449,9 +449,10 @@ body {
     align-self: flex-start;
 }
 
+/* Number 2 Issue Fix: Separate User Bubble with distinct right alignment */
 .user-wrapper {
     align-self: flex-end;
-    flex-direction: row-reverse;
+    margin-left: auto;
 }
 
 .msg-bubble {
@@ -821,7 +822,7 @@ body {
     font-weight: 700;
 }
 
-/* User Account Modal Overlay */
+/* User Account & Settings Modal */
 .auth-modal-overlay {
     position: fixed;
     top: 0;
@@ -847,6 +848,33 @@ body {
     box-shadow: 0 0 45px rgba(123, 0, 255, 0.5), 0 0 75px rgba(0, 68, 255, 0.3);
     color: #ffffff;
     position: relative;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.settings-card {
+    max-width: 520px;
+}
+
+.settings-section {
+    margin-bottom: 18px;
+}
+
+.settings-section-title {
+    font-size: 15px;
+    color: #7B00FF;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid rgba(123, 0, 255, 0.3);
+    padding-bottom: 6px;
+}
+
+.readonly-input {
+    background: #0d0618 !important;
+    opacity: 0.7;
+    cursor: not-allowed;
 }
 
 .auth-header {
@@ -894,15 +922,18 @@ body {
 }
 
 .avatar-preview-box {
-    width: 80px;
-    height: 80px;
+    width: 90px;
+    height: 90px;
     border-radius: 50%;
-    border: 2px dashed #7B00FF;
+    border: 2px solid #7B00FF;
     display: flex;
     align-items: center;
     justify-content: center;
     overflow: hidden;
     background: #000;
+    cursor: pointer;
+    position: relative;
+    box-shadow: 0 0 20px rgba(123, 0, 255, 0.5);
 }
 
 .avatar-preview-box img {
@@ -911,21 +942,22 @@ body {
     object-fit: cover;
 }
 
-.upload-pic-btn {
-    background: #120826;
-    border: 1px solid #7B00FF;
+.camera-overlay-icon {
+    position: absolute;
+    font-size: 22px;
     color: #ffffff;
-    padding: 6px 14px;
-    border-radius: 12px;
-    font-size: 12px;
-    cursor: pointer;
+    background: rgba(0, 0, 0, 0.5);
+    width: 100%;
+    height: 100%;
     display: flex;
     align-items: center;
-    gap: 6px;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s;
 }
 
-.upload-pic-btn:hover {
-    background: #7B00FF;
+.avatar-preview-box:hover .camera-overlay-icon {
+    opacity: 1;
 }
 
 .auth-form {
@@ -1007,7 +1039,7 @@ body {
     text-decoration: underline;
 }
 
-/* Fullscreen Sci-Fi Live Overlay */
+/* Fullscreen Sci-Fi Live Overlay - Exact Match to Reference Image */
 .live-voice-overlay {
     display: none;
     position: fixed;
@@ -1063,74 +1095,78 @@ body {
 
 .orb-visualizer-container {
     position: relative;
-    width: 300px;
-    height: 300px;
+    width: 320px;
+    height: 320px;
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
+/* Exact Deep Purple Sci-Fi Glowing Sphere Animation */
 .core-sci-fi-orb {
-    width: 190px;
-    height: 190px;
+    width: 160px;
+    height: 160px;
     border-radius: 50%;
-    background: radial-gradient(circle, #000000 30%, #0c041d 70%, #150033 100%);
-    border: 2px solid #7B00FF;
-    box-shadow: 0 0 35px #7B00FF, inset 0 0 40px #0044FF;
+    background: radial-gradient(circle at 35% 35%, #9d00ff 0%, #4c0099 50%, #1a0033 90%);
+    box-shadow: 0 0 40px #8a00ff, 0 0 80px #5e00b8, inset 0 0 35px rgba(255, 255, 255, 0.3);
     position: relative;
     z-index: 5;
-    transition: transform 0.1s ease, box-shadow 0.1s ease;
+    transition: transform 0.08s ease, box-shadow 0.08s ease;
 }
 
-.outer-wave-ring {
+.orb-core-pulse {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,255,255,0.4) 0%, transparent 60%);
+    animation: corePulse 2.5s infinite ease-in-out;
+}
+
+.sound-wave-glow {
+    position: absolute;
+    width: 210px;
+    height: 210px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(138, 0, 255, 0.35) 0%, transparent 70%);
+    z-index: 3;
+    pointer-events: none;
+    transition: transform 0.08s ease, opacity 0.08s ease;
+}
+
+.sci-fi-ring {
     position: absolute;
     border-radius: 50%;
     pointer-events: none;
-    transition: transform 0.1s ease, border-color 0.1s ease;
 }
 
-.wave-1 {
-    width: 205px;
-    height: 205px;
-    border: 2px solid rgba(123, 0, 255, 0.9);
-    border-radius: 42% 58% 65% 35% / 45% 45% 55% 55%;
-    box-shadow: 0 0 25px rgba(123, 0, 255, 0.8);
-    animation: fluidWave 5s linear infinite;
+.ring-outer {
+    width: 290px;
+    height: 290px;
+    border: 1px solid rgba(138, 0, 255, 0.25);
+    box-shadow: 0 0 20px rgba(138, 0, 255, 0.15);
+    animation: ringSpin 20s linear infinite;
 }
 
-.wave-2 {
-    width: 230px;
-    height: 230px;
-    border: 1.5px dashed rgba(0, 68, 255, 0.8);
-    border-radius: 60% 40% 30% 70% / 50% 60% 40% 50%;
-    box-shadow: 0 0 30px rgba(0, 68, 255, 0.6);
-    animation: fluidWave 8s linear infinite reverse;
+.ring-mid {
+    width: 240px;
+    height: 240px;
+    border: 1.5px dashed rgba(138, 0, 255, 0.4);
+    animation: ringSpin 12s linear infinite reverse;
 }
 
-.wave-3 {
-    width: 265px;
-    height: 265px;
-    border: 1px double rgba(123, 0, 255, 0.6);
-    border-radius: 35% 65% 55% 45% / 60% 30% 70% 40%;
-    box-shadow: 0 0 35px rgba(123, 0, 255, 0.5);
-    animation: fluidWave 12s linear infinite;
+.ring-inner {
+    width: 190px;
+    height: 190px;
+    border: 1px double rgba(160, 32, 240, 0.5);
+    animation: ringSpin 8s linear infinite;
 }
 
-.wave-particles {
-    width: 295px;
-    height: 295px;
-    border: 2px dotted rgba(123, 0, 255, 0.5);
-    border-radius: 50%;
-    animation: particleRotate 15s linear infinite;
+@keyframes corePulse {
+    0%, 100% { transform: scale(0.9); opacity: 0.3; }
+    50% { transform: scale(1.1); opacity: 0.7; }
 }
 
-@keyframes fluidWave {
-    0% { transform: rotate(0deg) scale(1); }
-    50% { transform: rotate(180deg) scale(1.05); }
-    100% { transform: rotate(360deg) scale(1); }
-}
-
-@keyframes particleRotate {
+@keyframes ringSpin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
 }
@@ -1159,7 +1195,6 @@ body {
     padding-bottom: 25px;
 }
 
-/* Gemini Style Live Voice Mic Button (No Green Fill) */
 .live-mic-toggle-btn {
     width: 48px;
     height: 48px;
@@ -1183,9 +1218,7 @@ body {
     box-shadow: 0 0 25px rgba(123, 0, 255, 0.8), 0 0 35px rgba(0, 68, 255, 0.6);
 }
 
-/* =========================================================
-   MOBILE RESPONSIVE CSS FIXES (Image 3, 4, 5 & 6 Requirement)
-   ========================================================= */
+/* MOBILE RESPONSIVE CSS FIXES */
 @media screen and (max-width: 768px) {
     .main-container {
         padding: 10px 12px;
@@ -1195,7 +1228,6 @@ body {
         display: block;
     }
 
-    /* Mobile Sidebar Overlay Drawer (Gemini Mobile Style) */
     .sidebar {
         position: fixed;
         top: 0;
@@ -1214,7 +1246,6 @@ body {
         display: block;
     }
 
-    /* Mobile Chat Box Fix (No overflow or truncation) */
     .glow-input-box {
         padding: 4px 8px 4px 12px;
         border-radius: 24px !important;
@@ -1238,7 +1269,6 @@ body {
         max-width: 220px;
     }
 
-    /* Account Profile at Bottom Mobile */
     .sidebar-bottom {
         padding-top: 12px;
         margin-top: auto;
