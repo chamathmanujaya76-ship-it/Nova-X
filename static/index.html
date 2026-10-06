@@ -2,7 +2,7 @@
 <html lang="si">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Nexuz | AI Assistant</title>
     <link rel="stylesheet" href="/static/style.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
@@ -125,13 +125,15 @@
         </div>
     </div>
 
+    <!-- SIDEBAR OVERLAY FOR MOBILE -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeMobileSidebar()"></div>
+
     <!-- MAIN APP LAYOUT -->
     <div class="app-container">
         <!-- Left Sidebar (Gemini Style) -->
         <aside class="sidebar" id="sidebar">
             <div class="sidebar-top">
                 <button class="sidebar-toggle-btn" onclick="toggleSidebar()" title="Toggle Sidebar">
-                    <!-- Gemini Style Sidebar Left Icon -->
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                         <line x1="9" y1="3" x2="9" y2="21"></line>
@@ -162,14 +164,17 @@
             <!-- Dynamic User Profile & Settings -->
             <div class="sidebar-bottom">
                 <div class="user-profile">
-                    <img id="userAvatarImg" class="user-avatar-img" src="" style="display: none;" alt="User Profile">
-                    <i class="fa-solid fa-circle-user profile-icon" id="defaultUserIcon"></i>
+                    <!-- Only Profile Picture is clickable for Settings -->
+                    <div class="user-avatar-wrapper" onclick="openSettingsModal()" title="Change Profile Picture">
+                        <img id="userAvatarImg" class="user-avatar-img" src="" style="display: none;" alt="User Profile">
+                        <i class="fa-solid fa-circle-user profile-icon" id="defaultUserIcon"></i>
+                    </div>
                     <div class="user-info-box">
                         <span class="creator-badge" id="creatorBadge" style="display: none;">👑 CREATOR</span>
                         <span class="user-name" id="userNameDisplay">Account User</span>
                     </div>
                 </div>
-                <button class="settings-btn" onclick="openSettingsModal()" title="Settings & Profile">
+                <button class="settings-btn" onclick="openSettingsModal()" title="Settings">
                     <i class="fa-solid fa-gear"></i>
                 </button>
                 <button class="settings-btn" onclick="logoutUser()" title="Logout">
@@ -182,6 +187,9 @@
         <main class="main-container" id="mainContainer">
             <!-- Top Header -->
             <header class="app-header">
+                <button class="mobile-menu-btn" onclick="toggleSidebar()" title="Open Menu">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
                 <div class="brand-badge"><i class="fa-solid fa-sparkles"></i> Nexuz AI</div>
                 <button class="live-voice-btn" onclick="openLiveVoiceMode()">
                     <span class="live-dot"></span>
@@ -251,7 +259,7 @@
                     <button onclick="sendMessage()" id="sendBtn"><i class="fa-solid fa-arrow-up"></i></button>
                 </div>
                 <footer class="app-footer">
-                    Nexuz v1.0 | Creator by <span class="author-name">Chamath</span>
+                    Nexuz v1.0 | Creator by <span class="author-name">Chamath Manujaya</span>
                 </footer>
             </div>
         </main>
@@ -266,10 +274,10 @@
 
         <div class="sci-fi-stage">
             <div class="orb-visualizer-container" id="orbContainer">
-                <div class="outer-wave-ring wave-particles"></div>
-                <div class="outer-wave-ring wave-3"></div>
-                <div class="outer-wave-ring wave-2"></div>
-                <div class="outer-wave-ring wave-1"></div>
+                <div class="outer-wave-ring wave-particles" id="waveParticles"></div>
+                <div class="outer-wave-ring wave-3" id="wave3"></div>
+                <div class="outer-wave-ring wave-2" id="wave2"></div>
+                <div class="outer-wave-ring wave-1" id="wave1"></div>
                 <div class="core-sci-fi-orb" id="coreOrb"></div>
             </div>
             <div class="voice-status-text" id="liveVoiceStatus">සවන්දෙමින් පවතී... කතා කරන්න...</div>
@@ -277,7 +285,8 @@
         </div>
 
         <div class="live-controls">
-            <button class="live-mic-toggle-btn active" id="liveMicToggle" onclick="toggleLiveMic()">
+            <!-- Sleek Gemini Style Mic Button (No Green Fill) -->
+            <button class="live-mic-toggle-btn active" id="liveMicToggle" onclick="toggleLiveMic()" title="Toggle Mic">
                 <i class="fa-solid fa-microphone"></i>
             </button>
         </div>

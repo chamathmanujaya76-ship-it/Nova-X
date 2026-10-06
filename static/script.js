@@ -6,6 +6,12 @@ let currentUser = null;
 let conversationHistory = []; // Context Memory Store
 let chatHistoryListArray = []; // Sidebar History Items
 
+// Audio Visualizer Context & Nodes
+let audioCtx = null;
+let analyser = null;
+let micStream = null;
+let animFrameId = null;
+
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 // App Initialization on Page Load
@@ -39,8 +45,7 @@ function updateSidebarUserDisplay() {
     const defaultUserIcon = document.getElementById("defaultUserIcon");
 
     if (userDisplayElem) {
-        // පළමු සහ දෙවන නම එකතු කර සම්පූර්ණ නම පෙන්වීම (Image 3 - 1 ස්ථානය)
-        const fullName = currentUser.full_name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.strip() || currentUser.first_name || "Account User";
+        const fullName = currentUser.full_name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.first_name || "Account User";
         userDisplayElem.innerText = fullName;
     }
 
@@ -227,10 +232,24 @@ async function saveSettings(e) {
     }
 }
 
-// Collapsible Sidebar Toggle (Gemini Style)
+// Sidebar Drawer Management (Desktop + Mobile)
 function toggleSidebar() {
     const sidebar = document.getElementById("sidebar");
-    if (sidebar) sidebar.classList.toggle("collapsed");
+    const overlay = document.getElementById("sidebarOverlay");
+    
+    if (window.innerWidth <= 768) {
+        sidebar.classList.toggle("mobile-open");
+        if (overlay) overlay.classList.toggle("active");
+    } else {
+        sidebar.classList.toggle("collapsed");
+    }
+}
+
+function closeMobileSidebar() {
+    const sidebar = document.getElementById("sidebar");
+    const overlay = document.getElementById("sidebarOverlay");
+    if (sidebar) sidebar.classList.remove("mobile-open");
+    if (overlay) overlay.classList.remove("active");
 }
 
 function startNewChat() {
@@ -239,11 +258,12 @@ function startNewChat() {
     chatContainer.innerHTML = "";
     if (heroBanner) heroBanner.style.display = "flex";
     selectedFiles = [];
-    conversationHistory = []; // Reset Context Memory
+    conversationHistory = [];
     renderFilePreviews();
+    closeMobileSidebar();
 }
 
-// Sidebar History Management (With Delete Feature)
+// Sidebar History Management
 function loadSavedHistory() {
     const saved = localStorage.getItem("nexuz_chat_history_list");
     if (saved) {
@@ -347,11 +367,10 @@ function renderFilePreviews() {
     });
 }
 
-// Custom Markdown & Code Formatting Engine
+// Custom Markdown Engine
 function renderMarkdown(text) {
     if (!text) return "";
     
-    // Code blocks with syntax header and Copy Button
     let formatted = text.replace(/```([a-zA-Z0-9_+-]*)\n([\s\S]*?)```/g, (match, lang, code) => {
         const language = lang.trim() || 'code';
         const escapedCode = code
@@ -374,29 +393,19 @@ function renderMarkdown(text) {
         `;
     });
 
-    // Inline Code
     formatted = formatted.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
-
-    // Headings
     formatted = formatted.replace(/^### (.*$)/gim, '<h3>$1</h3>');
     formatted = formatted.replace(/^## (.*$)/gim, '<h2>$1</h2>');
     formatted = formatted.replace(/^# (.*$)/gim, '<h1>$1</h1>');
-
-    // Bold
     formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    
-    // Bullet Points
     formatted = formatted.replace(/^\* (.*$)/gim, '<li>$1</li>');
     formatted = formatted.replace(/^- (.*$)/gim, '<li>$1</li>');
     formatted = formatted.replace(/(<li>.*<\/li>)/sim, '<ul>$1</ul>');
-
-    // Newlines to <br> (outside code blocks)
     formatted = formatted.replace(/\n/g, '<br>');
 
     return formatted;
 }
 
-// One-Click Copy Code Function
 function copyCodeToClipboard(codeId, buttonElem) {
     const codeElem = document.getElementById(codeId);
     if (!codeElem) return;
@@ -405,15 +414,11 @@ function copyCodeToClipboard(codeId, buttonElem) {
     navigator.clipboard.writeText(textToCopy).then(() => {
         const originalHtml = buttonElem.innerHTML;
         buttonElem.innerHTML = `<i class="fa-solid fa-check" style="color: #00ff88;"></i> Copied!`;
-        setTimeout(() => {
-            buttonElem.innerHTML = originalHtml;
-        }, 2000);
-    }).catch(err => {
-        alert("කෝඩ් එක Copy කරගැනීමට නොහැකි විය.");
+        setTimeout(() => { buttonElem.innerHTML = originalHtml; }, 2000);
     });
 }
 
-// Text Message Sending Logic with Nexuz Star Loading Animation
+// Message Sending Logic with Star Loader Fix
 async function sendMessage(presetMessage = null) {
     const input = document.getElementById("userInput");
     const message = presetMessage || input.value.trim();
@@ -431,7 +436,6 @@ async function sendMessage(presetMessage = null) {
     const currentFiles = [...selectedFiles];
     appendMessage(message, "user-msg", currentFiles);
 
-    // Save to conversation history memory
     conversationHistory.push({ role: "user", content: message });
 
     input.value = "";
@@ -440,7 +444,7 @@ async function sendMessage(presetMessage = null) {
 
     if (autoSendTimer) clearTimeout(autoSendTimer);
 
-    // Show Nexuz Star Loading Animation
+    // Star Loading Animation Insertion
     const loadingHtml = `<div class="nova-star-loader"><i class="fa-solid fa-sparkles"></i></div>`;
     const loadingId = appendMessage(loadingHtml, "bot-msg", [], true);
 
@@ -483,8 +487,6 @@ async function sendMessage(presetMessage = null) {
         }
 
         const replyText = data.reply || "උත්තරයක් ලබාගැනීමට නොහැකි විය.";
-        
-        // Save assistant response to conversation history memory
         conversationHistory.push({ role: "assistant", content: replyText });
 
         if (botMsgElem) {
@@ -496,7 +498,6 @@ async function sendMessage(presetMessage = null) {
     }
 }
 
-// Append Message UI Helper
 function appendMessage(content, className, files = [], isHtml = false) {
     const container = document.getElementById("chatContainer");
     
@@ -526,11 +527,8 @@ function appendMessage(content, className, files = [], isHtml = false) {
 
     if (content) {
         const textNode = document.createElement("div");
-        if (isHtml) {
-            textNode.innerHTML = content;
-        } else {
-            textNode.innerHTML = renderMarkdown(content);
-        }
+        if (isHtml) textNode.innerHTML = content;
+        else textNode.innerHTML = renderMarkdown(content);
         msgDiv.appendChild(textNode);
     }
 
@@ -616,9 +614,7 @@ function startVoiceToText() {
         autoSendTimer = setTimeout(() => {
             rec.stop();
             if (micBtn) micBtn.classList.remove("recording");
-            if (input && input.value.trim()) {
-                sendMessage();
-            }
+            if (input && input.value.trim()) sendMessage();
         }, 5000);
     };
 
@@ -627,23 +623,68 @@ function startVoiceToText() {
     };
 }
 
-// Fullscreen Nexuz Live Voice Mode with User Greeting
+// Web Audio API Sound-to-Animation Visualizer Engine
+async function initAudioVisualizer() {
+    try {
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 64;
+
+        const source = audioCtx.createMediaStreamSource(micStream);
+        source.connect(analyser);
+
+        visualizeAudio();
+    } catch (e) {
+        console.log("Audio visualizer init error:", e);
+    }
+}
+
+function visualizeAudio() {
+    if (!isLiveVoiceActive || !analyser) return;
+
+    const dataArray = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(dataArray);
+
+    let sum = 0;
+    for (let i = 0; i < dataArray.length; i++) {
+        sum += dataArray[i];
+    }
+    const average = sum / dataArray.length; // Voice frequency level
+
+    const coreOrb = document.getElementById("coreOrb");
+    const wave1 = document.getElementById("wave1");
+    const wave2 = document.getElementById("wave2");
+    const wave3 = document.getElementById("wave3");
+
+    // Dynamic Sound Animation Scaling
+    const scale = 1 + (average / 120); 
+    const glow = 20 + (average * 0.8);
+
+    if (coreOrb) {
+        coreOrb.style.transform = `scale(${scale})`;
+        coreOrb.style.boxShadow = `0 0 ${glow}px #7B00FF, inset 0 0 ${glow + 10}px #0044FF`;
+    }
+    if (wave1) wave1.style.transform = `scale(${scale * 1.05})`;
+    if (wave2) wave2.style.transform = `scale(${scale * 1.1})`;
+    if (wave3) wave3.style.transform = `scale(${scale * 1.15})`;
+
+    animFrameId = requestAnimationFrame(visualizeAudio);
+}
+
+// Fullscreen Sci-Fi Live Voice Mode with Speech Synthesis & Sound Animation
 function openLiveVoiceMode() {
     isLiveVoiceActive = true;
     document.getElementById("liveVoiceOverlay").classList.add("active");
 
-    // පළමු නමෙන් කතා කිරීම (First Name greeting)
     const firstName = currentUser ? currentUser.first_name : "User";
     const greetingText = `Hi ${firstName}, what shall we do today?`;
 
     const statusText = document.getElementById("liveVoiceStatus");
     if (statusText) statusText.innerText = greetingText;
 
-    if ('speechSynthesis' in window) {
-        const utterance = new SpeechSynthesisUtterance(greetingText);
-        utterance.lang = "en-US";
-        window.speechSynthesis.speak(utterance);
-    }
+    speakText(greetingText);
+    initAudioVisualizer();
 
     setTimeout(startLiveListening, 2500);
 }
@@ -652,7 +693,20 @@ function closeLiveVoiceMode() {
     isLiveVoiceActive = false;
     if (recognition) recognition.stop();
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    if (micStream) micStream.getTracks().forEach(t => t.stop());
+    if (animFrameId) cancelAnimationFrame(animFrameId);
+    
     document.getElementById("liveVoiceOverlay").classList.remove("active");
+}
+
+function speakText(text) {
+    if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel(); // Reset previous voice
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = "en-US";
+        utterance.rate = 1.0;
+        window.speechSynthesis.speak(utterance);
+    }
 }
 
 function startLiveListening() {
@@ -715,7 +769,9 @@ async function processLiveVoiceInput(userText) {
         const reply = data.reply || "සමාවන්න, මට එය තේරුණේ නැත.";
 
         if (statusText) statusText.innerText = reply;
-        setTimeout(startLiveListening, 3500);
+        speakText(reply); // Speech Output for Live Voice Mode
+
+        setTimeout(startLiveListening, 4500);
     } catch (err) {
         if (statusText) statusText.innerText = "සන්නිවේදන දෝෂයක් සිදු විය.";
         setTimeout(startLiveListening, 2000);
