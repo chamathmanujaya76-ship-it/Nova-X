@@ -31,6 +31,10 @@ if os.path.exists(static_dir):
 
 # Environment Variables Loading
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+GEMINI_API_KEY_2 = os.environ.get("GEMINI_API_KEY_2")
+GEMINI_API_KEY_3 = os.environ.get("GEMINI_API_KEY_3")
+GEMINI_API_KEY_4 = os.environ.get("GEMINI_API_KEY_4")
+
 DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
@@ -78,7 +82,7 @@ def search_tavily(query: str) -> str:
     url = "https://api.tavily.com/search"
     headers = {"Content-Type": "application/json"}
     payload = json.dumps({
-        "api_key": api_key,
+        "api_key": api_key.strip(),
         "query": query,
         "max_results": 4
     }).encode('utf-8')
@@ -89,7 +93,7 @@ def search_tavily(query: str) -> str:
         results = []
         for r in data.get("results", []):
             title = r.get("title", "")
-            content = r.get("content", "")
+            content = r.content if hasattr(r, 'content') else r.get("content", "")
             if title or content:
                 results.append(f"📌 Title: {title}\nSnippet: {content}")
         return "\n\n".join(results)
@@ -102,7 +106,7 @@ def search_serpapi(query: str) -> str:
     
     params = urllib.parse.urlencode({
         "q": query,
-        "api_key": api_key,
+        "api_key": api_key.strip(),
         "engine": "google"
     })
     url = f"https://serpapi.com/search.json?{params}"
@@ -134,7 +138,6 @@ def web_search(query: str) -> str:
     if not query or len(query.strip()) < 2:
         return ""
     
-    # Search Priority: Tavily -> SerpAPI -> DuckDuckGo
     search_providers = [
         ("Tavily AI Search", search_tavily),
         ("SerpAPI", search_serpapi),
@@ -155,40 +158,53 @@ def web_search(query: str) -> str:
 # ================= AI MODEL PROVIDERS WITH FALLBACK =================
 
 def call_gemini(prompt_content: str, custom_system_instruction: str) -> str:
-    """Primary AI Provider (Level 10) - Gemini API"""
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        raise Exception("Gemini API Key නොමැත.")
+    """Primary AI Provider (Level 10) - Gemini API (Multi-Key & Multi-Model Support)"""
+    gemini_keys = [
+        os.environ.get("GEMINI_API_KEY"),
+        os.environ.get("GEMINI_API_KEY_2"),
+        os.environ.get("GEMINI_API_KEY_3"),
+        os.environ.get("GEMINI_API_KEY_4"),
+    ]
     
-    client = genai.Client(api_key=api_key)
-    models_to_try = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
+    valid_keys = [k.strip() for k in gemini_keys if k and k.strip()]
     
-    for model_name in models_to_try:
+    if not valid_keys:
+        raise Exception("Gemini API Key කිසිවක් සකසා නොමැත.")
+    
+    # Updated Gemini standard model names
+    models_to_try = ["gemini-1.5-flash","gemini-2.5-flash","gemini-3.6-flash" "gemini-1.5-pro", "gemini-2.0-flash-exp"]
+    
+    for idx, key in enumerate(valid_keys, 1):
         try:
-            response = client.models.generate_content(
-                model=model_name,
-                contents=prompt_content,
-                config={
-                    "system_instruction": custom_system_instruction,
-                    "temperature": 0.7,
-                }
-            )
-            if response and response.text:
-                return response.text
-        except Exception as e:
-            print(f"Gemini error ({model_name}): {e}")
+            client = genai.Client(api_key=key)
+            for model_name in models_to_try:
+                try:
+                    response = client.models.generate_content(
+                        model=model_name,
+                        contents=prompt_content,
+                        config={
+                            "system_instruction": custom_system_instruction,
+                            "temperature": 0.7,
+                        }
+                    )
+                    if response and response.text:
+                        return response.text
+                except Exception as e:
+                    print(f"Gemini Key {idx} error ({model_name}): {e}")
+        except Exception as key_err:
+            print(f"Gemini Key {idx} client error: {key_err}")
             
-    raise Exception("සියලුම Gemini Models අසාර්ථක විය.")
+    raise Exception("සියලුම Gemini API Keys සහ Models අසාර්ථක විය.")
 
 def call_deepseek(prompt_content: str, custom_system_instruction: str) -> str:
     """Fallback AI Provider 1 (Level 9.5) - DeepSeek API"""
     api_key = os.environ.get("DEEPSEEK_API_KEY")
-    if not api_key:
+    if not api_key or not api_key.strip():
         raise Exception("DeepSeek API Key නොමැත.")
     
     url = "https://api.deepseek.com/chat/completions"
     headers = {
-        "Authorization": f"Bearer {api_key}",
+        "Authorization": f"Bearer {api_key.strip()}",
         "Content-Type": "application/json"
     }
     payload = json.dumps({
@@ -208,12 +224,12 @@ def call_deepseek(prompt_content: str, custom_system_instruction: str) -> str:
 def call_groq(prompt_content: str, custom_system_instruction: str) -> str:
     """Fallback AI Provider 2 (Level 8.5) - Groq API"""
     api_key = os.environ.get("GROQ_API_KEY")
-    if not api_key:
+    if not api_key or not api_key.strip():
         raise Exception("Groq API Key නොමැත.")
     
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
-        "Authorization": f"Bearer {api_key}",
+        "Authorization": f"Bearer {api_key.strip()}",
         "Content-Type": "application/json"
     }
     payload = json.dumps({
@@ -233,16 +249,16 @@ def call_groq(prompt_content: str, custom_system_instruction: str) -> str:
 def call_openrouter(prompt_content: str, custom_system_instruction: str) -> str:
     """Fallback AI Provider 3 (Level 7.5) - OpenRouter API"""
     api_key = os.environ.get("OPENROUTER_API_KEY")
-    if not api_key:
+    if not api_key or not api_key.strip():
         raise Exception("OpenRouter API Key නොමැත.")
     
     url = "https://openrouter.ai/api/v1/chat/completions"
     headers = {
-        "Authorization": f"Bearer {api_key}",
+        "Authorization": f"Bearer {api_key.strip()}",
         "Content-Type": "application/json"
     }
     payload = json.dumps({
-        "model": "google/gemini-2.5-flash:free",
+        "model": "google/gemini-2.0-flash-exp:free",
         "messages": [
             {"role": "system", "content": custom_system_instruction},
             {"role": "user", "content": prompt_content}
