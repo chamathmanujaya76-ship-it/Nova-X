@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
 from duckduckgo_search import DDGS
-from google import genai
+import google.generativeai as genai
 import firebase_admin
 from firebase_admin import credentials, firestore
 
@@ -29,19 +29,6 @@ static_dir = os.path.join(base_dir, "static")
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
-# Environment Variables Loading
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-GEMINI_API_KEY_2 = os.environ.get("GEMINI_API_KEY_2")
-GEMINI_API_KEY_3 = os.environ.get("GEMINI_API_KEY_3")
-GEMINI_API_KEY_4 = os.environ.get("GEMINI_API_KEY_4")
-
-DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
-
-TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY")
-SERPAPI_API_KEY = os.environ.get("SERPAPI_API_KEY")
-
 db = None
 try:
     if not firebase_admin._apps:
@@ -55,29 +42,23 @@ try:
         else:
             json_filename = "nova-x-6ef72-firebase-adminsdk-fbsvc-f00ed803ec.json"
             json_path = os.path.join(base_dir, json_filename)
-            if not os.path.exists(json_path):
-                json_path = json_filename
-
             if os.path.exists(json_path):
                 cred = credentials.Certificate(json_path)
                 firebase_admin.initialize_app(cred)
                 db = firestore.client()
                 print("Firebase Database එක File මගින් සම්බන්ධ විය.")
-            else:
-                print("Firebase Credentials හමු නොවුණි.")
 except Exception as e:
     print(f"Firebase Connection Warning: {e}")
 
 def hash_password(password: str) -> str:
     return hashlib.sha256(str(password).encode('utf-8')).hexdigest()
 
-# ================= SEARCH PROVIDERS WITH FALLBACK =================
+# ================= SEARCH PROVIDERS =================
 
 def search_tavily(query: str) -> str:
-    """Primary Search Provider - Tavily AI Search"""
     api_key = os.environ.get("TAVILY_API_KEY")
     if not api_key:
-        raise Exception("Tavily API key සකසා නොමැත.")
+        raise Exception("Tavily API key නොමැත.")
     
     url = "https://api.tavily.com/search"
     headers = {"Content-Type": "application/json"}
@@ -99,16 +80,11 @@ def search_tavily(query: str) -> str:
         return "\n\n".join(results)
 
 def search_serpapi(query: str) -> str:
-    """Fallback Search Provider 1 - SerpAPI"""
     api_key = os.environ.get("SERPAPI_API_KEY")
     if not api_key:
-        raise Exception("SerpAPI Key සකසා නොමැත.")
+        raise Exception("SerpAPI Key නොමැත.")
     
-    params = urllib.parse.urlencode({
-        "q": query,
-        "api_key": api_key.strip(),
-        "engine": "google"
-    })
+    params = urllib.parse.urlencode({"q": query, "api_key": api_key.strip(), "engine": "google"})
     url = f"https://serpapi.com/search.json?{params}"
     req = urllib.request.Request(url)
     with urllib.request.urlopen(req, timeout=8) as response:
@@ -122,11 +98,9 @@ def search_serpapi(query: str) -> str:
         return "\n\n".join(results)
 
 def search_ddg(query: str) -> str:
-    """Fallback Search Provider 2 - DuckDuckGo"""
     results = []
-    clean_query = query.strip()
     with DDGS() as ddgs:
-        for r in ddgs.text(clean_query, max_results=4):
+        for r in ddgs.text(query.strip(), max_results=4):
             title = r.get('title', '')
             snippet = r.get('body', '')
             if title or snippet:
@@ -134,69 +108,54 @@ def search_ddg(query: str) -> str:
     return "\n\n".join(results)
 
 def web_search(query: str) -> str:
-    """Ordered Fallback Search Orchestrator"""
     if not query or len(query.strip()) < 2:
         return ""
-    
-    search_providers = [
-        ("Tavily AI Search", search_tavily),
-        ("SerpAPI", search_serpapi),
-        ("DuckDuckGo Search", search_ddg)
-    ]
-
-    for provider_name, search_fn in search_providers:
+    for provider_name, search_fn in [("Tavily", search_tavily), ("SerpAPI", search_serpapi), ("DuckDuckGo", search_ddg)]:
         try:
             res = search_fn(query)
             if res and len(res.strip()) > 0:
-                print(f"Search Succeeded using [{provider_name}]")
                 return res
         except Exception as e:
-            print(f"Search Provider [{provider_name}] Failed: {e}")
-
+            print(f"Search [{provider_name}] Error: {e}")
     return ""
 
-# ================= AI MODEL PROVIDERS WITH FALLBACK =================
+# ================= AI MODEL PROVIDERS =================
 
 def call_gemini(prompt_content: str, custom_system_instruction: str) -> str:
-    """Primary AI Provider - Gemini API (Multi-Key & Multi-Model Support)"""
-    gemini_keys = [
+    """Primary AI Provider - Gemini (Multi-Key)"""
+    keys = [
         os.environ.get("GEMINI_API_KEY"),
         os.environ.get("GEMINI_API_KEY_2"),
         os.environ.get("GEMINI_API_KEY_3"),
         os.environ.get("GEMINI_API_KEY_4"),
     ]
-    
-    valid_keys = [k.strip() for k in gemini_keys if k and k.strip()]
-    
+    valid_keys = [k.strip() for k in keys if k and k.strip()]
     if not valid_keys:
-        raise Exception("Gemini API Key කිසිවක් සකසා නොමැත.")
-    
-    models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash","gemini-3.6-flash","gemini-1.5-pro"]
-    
+        raise Exception("Gemini API Keys නොමැත.")
+
+    models_to_try = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
+
     for idx, key in enumerate(valid_keys, 1):
         try:
-            client = genai.Client(api_key=key)
+            genai.configure(api_key=key)
             for model_name in models_to_try:
                 try:
-                    response = client.models.generate_content(
-                        model=model_name,
-                        contents=prompt_content,
-                        config={
-                            "system_instruction": custom_system_instruction,
-                            "temperature": 0.7,
-                        }
+                    model = genai.GenerativeModel(
+                        model_name=model_name,
+                        system_instruction=custom_system_instruction
                     )
-                    if response and response.text:
-                        return response.text
-                except Exception as e:
-                    print(f"Gemini Key {idx} error ({model_name}): {e}")
-        except Exception as key_err:
-            print(f"Gemini Key {idx} client error: {key_err}")
-            
-    raise Exception("සියලුම Gemini API Keys සහ Models අසාර්ථක විය.")
+                    res = model.generate_content(prompt_content)
+                    if res and res.text:
+                        return res.text
+                except Exception as me:
+                    print(f"Gemini Key {idx} ({model_name}) error: {me}")
+        except Exception as ke:
+            print(f"Gemini Key {idx} config error: {ke}")
+
+    raise Exception("සියලුම Gemini API Keys/Models වැඩ කරන්නේ නැත.")
 
 def call_deepseek(prompt_content: str, custom_system_instruction: str) -> str:
-    """Fallback AI Provider 1 - DeepSeek API"""
+    """Fallback Provider 1 - DeepSeek API"""
     api_key = os.environ.get("DEEPSEEK_API_KEY")
     if not api_key or not api_key.strip():
         raise Exception("DeepSeek API Key නොමැත.")
@@ -221,16 +180,13 @@ def call_deepseek(prompt_content: str, custom_system_instruction: str) -> str:
         return res_data["choices"][0]["message"]["content"]
 
 def call_groq(prompt_content: str, custom_system_instruction: str) -> str:
-    """Fallback AI Provider 2 - Groq API"""
+    """Fallback Provider 2 - Groq API"""
     api_key = os.environ.get("GROQ_API_KEY")
     if not api_key or not api_key.strip():
         raise Exception("Groq API Key නොමැත.")
     
     url = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {api_key.strip()}",
-        "Content-Type": "application/json"
-    }
+    headers = {"Authorization": f"Bearer {api_key.strip()}", "Content-Type": "application/json"}
     payload = json.dumps({
         "model": "llama-3.3-70b-versatile",
         "messages": [
@@ -246,32 +202,35 @@ def call_groq(prompt_content: str, custom_system_instruction: str) -> str:
         return res_data["choices"][0]["message"]["content"]
 
 def call_openrouter(prompt_content: str, custom_system_instruction: str) -> str:
-    """Fallback AI Provider 3 - OpenRouter API"""
+    """Fallback Provider 3 - OpenRouter API (Free Models)"""
     api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key or not api_key.strip():
         raise Exception("OpenRouter API Key නොමැත.")
     
     url = "https://openrouter.ai/api/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {api_key.strip()}",
-        "Content-Type": "application/json"
-    }
-    payload = json.dumps({
-        "model": "google/gemini-2.0-flash-exp:free",
-        "messages": [
-            {"role": "system", "content": custom_system_instruction},
-            {"role": "user", "content": prompt_content}
-        ],
-        "temperature": 0.7
-    }).encode('utf-8')
+    headers = {"Authorization": f"Bearer {api_key.strip()}", "Content-Type": "application/json"}
+    
+    for free_model in ["meta-llama/llama-3.3-70b-instruct:free", "google/gemini-2.0-flash-lite-preview-02-05:free"]:
+        try:
+            payload = json.dumps({
+                "model": free_model,
+                "messages": [
+                    {"role": "system", "content": custom_system_instruction},
+                    {"role": "user", "content": prompt_content}
+                ]
+            }).encode('utf-8')
 
-    req = urllib.request.Request(url, data=payload, headers=headers)
-    with urllib.request.urlopen(req, timeout=20) as resp:
-        res_data = json.loads(resp.read().decode('utf-8'))
-        return res_data["choices"][0]["message"]["content"]
+            req = urllib.request.Request(url, data=payload, headers=headers)
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                res_data = json.loads(resp.read().decode('utf-8'))
+                if "choices" in res_data and len(res_data["choices"]) > 0:
+                    return res_data["choices"][0]["message"]["content"]
+        except Exception as e:
+            print(f"OpenRouter Model ({free_model}) error: {e}")
+
+    raise Exception("OpenRouter Models අසාර්ථක විය.")
 
 def generate_ai_response_fallback(prompt_content: str, custom_system_instruction: str):
-    """Ordered Fallback AI Engine (Gemini -> DeepSeek -> Groq -> OpenRouter)"""
     ai_providers = [
         ("Gemini API (Primary)", call_gemini),
         ("DeepSeek API (Fallback 1)", call_deepseek),
@@ -282,17 +241,16 @@ def generate_ai_response_fallback(prompt_content: str, custom_system_instruction
     errors = []
     for provider_name, provider_fn in ai_providers:
         try:
-            print(f"Attempting AI Response via [{provider_name}]...")
+            print(f"Attempting [{provider_name}]...")
             reply = provider_fn(prompt_content, custom_system_instruction)
             if reply and len(reply.strip()) > 0:
-                print(f"Successfully generated response via [{provider_name}]")
                 return reply, provider_name
         except Exception as e:
             err_msg = str(e)
-            print(f"AI Provider [{provider_name}] Error: {err_msg}")
+            print(f"[{provider_name}] Error: {err_msg}")
             errors.append(f"{provider_name}: {err_msg}")
 
-    raise Exception(f"සියලුම AI Providers ක්‍රියා විරහිතයි: {'; '.join(errors)}")
+    raise Exception(f"සියලුම AI Providers අසාර්ථකයි: {'; '.join(errors)}")
 
 # ================= SYSTEM INSTRUCTIONS & MODELS =================
 
@@ -336,109 +294,20 @@ class AuthRequest(BaseModel):
     password: str
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-    age: Optional[str] = None
-    country: Optional[str] = None
-    purpose: Optional[str] = None
 
 class UpdateProfileRequest(BaseModel):
     user_id: str
     first_name: str
     last_name: str
-    age: Optional[str] = None
-    password: Optional[str] = None
     voice_preference: Optional[str] = "male"
     profile_pic: Optional[str] = None
-
-# ================= API ENDPOINTS =================
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_index():
     index_path = os.path.join(static_dir, "index.html")
     if os.path.exists(index_path):
         return FileResponse(index_path)
-    return HTMLResponse("<h2>Nexuz Backend is Running Successfully!</h2>")
-
-@app.post("/api/register")
-async def register(req: AuthRequest):
-    if not db:
-        return {"success": False, "message": "Database (Firebase) සම්බන්ධ කර නැත."}
-    users_ref = db.collection("users")
-    existing = users_ref.where("email", "==", req.email).get()
-    if len(existing) > 0:
-        return {"success": False, "message": "මෙම Email එකෙන් මීට පෙර Account එකක් සාදා ඇත!"}
-    
-    is_creator = (req.email.strip().lower() == "chamathmanujaya76@gmail.com")
-    full_name = f"{req.first_name or ''} {req.last_name or ''}".strip()
-    
-    doc_ref = users_ref.add({
-        "first_name": req.first_name,
-        "last_name": req.last_name,
-        "full_name": full_name,
-        "age": req.age,
-        "country": req.country,
-        "purpose": req.purpose,
-        "email": req.email,
-        "password": hash_password(req.password),
-        "is_creator": is_creator,
-        "voice_preference": "male",
-        "profile_pic": "",
-        "created_at": datetime.now()
-    })
-    
-    user_data = {
-        "id": doc_ref[1].id,
-        "first_name": req.first_name,
-        "last_name": req.last_name,
-        "full_name": full_name,
-        "age": req.age,
-        "country": req.country,
-        "email": req.email,
-        "is_creator": is_creator,
-        "voice_preference": "male",
-        "profile_pic": ""
-    }
-    return {"success": True, "message": "Account එක සාර්ථකව සෑදුවා!", "user": user_data}
-
-@app.post("/api/login")
-async def login(req: AuthRequest):
-    if not db:
-        return {"success": False, "message": "Database (Firebase) සම්බන්ධ කර නැත."}
-    users_ref = db.collection("users")
-    query = users_ref.where("email", "==", req.email).where("password", "==", hash_password(req.password)).get()
-    if len(query) > 0:
-        u_data = query[0].to_dict()
-        u_data["id"] = query[0].id
-        if "password" in u_data:
-            del u_data["password"]
-        u_data["is_creator"] = (req.email.strip().lower() == "chamathmanujaya76@gmail.com")
-        if "full_name" not in u_data or not u_data["full_name"]:
-            u_data["full_name"] = f"{u_data.get('first_name', '')} {u_data.get('last_name', '')}".strip()
-        return {"success": True, "user": u_data}
-    return {"success": False, "message": "Email එක හෝ Password එක වැරදියි!"}
-
-@app.post("/api/update_profile")
-async def update_profile(req: UpdateProfileRequest):
-    update_dict = {
-        "profile_pic": req.profile_pic or ""
-    }
-    if req.age:
-        update_dict["age"] = req.age
-    if req.password and len(req.password.strip()) > 0:
-        update_dict["password"] = hash_password(req.password.strip())
-    if req.voice_preference:
-        update_dict["voice_preference"] = req.voice_preference
-
-    if db and req.user_id:
-        try:
-            users_ref = db.collection("users").document(req.user_id)
-            users_ref.update(update_dict)
-        except Exception as e:
-            print(f"Profile Update Firestore Error: {e}")
-    return {
-        "success": True,
-        "profile_pic": req.profile_pic or "",
-        "voice_preference": req.voice_preference
-    }
+    return HTMLResponse("<h2>Nexuz Backend is Running!</h2>")
 
 @app.post("/api/chat")
 async def chat_endpoint(req: ChatRequest):
@@ -461,47 +330,16 @@ async def chat_endpoint(req: ChatRequest):
         prompt_content = f"[Real-time Web Search Results]:\n{search_context}\n\n" + prompt_content
 
     user_first_name = req.first_name or "User"
-    user_full_name = req.full_name or user_first_name
-
-    if req.email and req.email.strip().lower() == "chamathmanujaya76@gmail.com":
-        custom_system_instruction = system_instruction + f"\n\nවත්මන් පරිශීලකයා ඔබේ සැබෑ Creator (නිර්මාතෘ) වන E.M.Chamath Manujaya වේ. ඔහුට ඉතාමත් ගෞරවයෙන් 'Sir' හෝ 'Creator' ලෙස අමතා විශේෂ සැලකිල්ලෙන් පිළිතුරු සපයන්න."
-    else:
-        custom_system_instruction = system_instruction + f"\n\nපරිශීලකයාගේ සම්පූර්ණ නම: {user_full_name}. පළමු නම: {user_first_name}. පරිශීලකයාට අමතන විට ඔහුව/ඇයව මිත්‍රශීලීව {user_first_name} ලෙස පළමු නමින් අමතන්න."
+    custom_system_instruction = system_instruction + f"\n\nවත්මන් පරිශීලකයා: {user_first_name}."
 
     try:
-        # Fallback AI System Call
         bot_reply, active_provider = generate_ai_response_fallback(prompt_content, custom_system_instruction)
     except Exception as e:
         return {
             "success": False,
-            "error_type": "api_error",
-            "reply": f"සන්නිවේදන දෝෂයක් සිදු විය. සියලුම AI Services අවහිර වී ඇත. Error: {str(e)}",
+            "reply": f"සන්නිවේදන දෝෂයක් සිදු විය: {str(e)}",
             "search_used": False
         }
-
-    # Save to Firestore if database is connected
-    if db and req.session_id and req.user_id != "guest":
-        try:
-            session_ref = db.collection("chat_sessions").document(req.session_id)
-            session_ref.collection("messages").add({
-                "user_id": req.user_id,
-                "role": "user",
-                "content": user_prompt,
-                "timestamp": datetime.utcnow()
-            })
-            session_ref.collection("messages").add({
-                "user_id": req.user_id,
-                "role": "assistant",
-                "content": bot_reply,
-                "timestamp": datetime.utcnow()
-            })
-            session_ref.set({
-                "user_id": req.user_id,
-                "last_updated": datetime.utcnow(),
-                "title": user_prompt[:25]
-            }, merge=True)
-        except Exception as ex:
-            print(f"Firestore Save Error: {ex}")
 
     return {
         "success": True,
