@@ -5,6 +5,25 @@
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 
+/* Custom Gemini-style Subtle Scrollbar Global Setup */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(123, 0, 255, 0.4);
+}
+
 body {
     background-color: #000000 !important;
     background: #000000 !important;
@@ -408,7 +427,7 @@ body {
     margin-top: 8px;
 }
 
-/* Nexuz Star Loading Animation Fix (Number 1 Issue Fix) */
+/* Nexuz Star Loading Animation Fix */
 @keyframes starPulseGlow {
     0% { transform: rotate(0deg) scale(1); filter: drop-shadow(0 0 10px #7B00FF); }
     50% { transform: rotate(180deg) scale(1.4); filter: drop-shadow(0 0 35px #7B00FF) drop-shadow(0 0 50px #0044FF); }
@@ -449,7 +468,6 @@ body {
     align-self: flex-start;
 }
 
-/* Number 2 Issue Fix: Separate User Bubble with distinct right alignment */
 .user-wrapper {
     align-self: flex-end;
     margin-left: auto;
@@ -822,7 +840,7 @@ body {
     font-weight: 700;
 }
 
-/* User Account & Settings Modal */
+/* User Account & Settings Modal Base */
 .auth-modal-overlay {
     position: fixed;
     top: 0;
@@ -849,26 +867,245 @@ body {
     color: #ffffff;
     position: relative;
     max-height: 90vh;
+}
+
+/* ---------------- MODERN GEMINI SETTINGS UI FIXES ---------------- */
+.modern-gemini-settings {
+    max-width: 550px !important;
+    padding: 25px !important;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    overflow: hidden !important; /* Hide Container Scrollbar */
+}
+
+/* Settings Internal Scroll Area (Hidden Scrollbar) */
+.settings-tab-content-wrapper {
+    flex: 1;
     overflow-y: auto;
+    padding-right: 2px;
+    scrollbar-width: none; /* Firefox Hidden Scrollbar */
+    -ms-overflow-style: none; /* IE/Edge Hidden Scrollbar */
 }
 
-.settings-card {
-    max-width: 520px;
+.settings-tab-content-wrapper::-webkit-scrollbar {
+    display: none; /* Webkit Chrome/Safari Hidden Scrollbar */
 }
 
-.settings-section {
-    margin-bottom: 18px;
+.settings-profile-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 5px;
 }
 
-.settings-section-title {
-    font-size: 15px;
+.brand-avatar-glow {
+    width: 100px !important;
+    height: 100px !important;
+    border-radius: 50% !important;
+    border: 3px solid #7B00FF !important;
+    box-shadow: 0 0 25px rgba(123, 0, 255, 0.8), 0 0 45px rgba(0, 68, 255, 0.5) !important;
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+    background: #090414;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.brand-avatar-glow img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.default-avatar-icon {
+    font-size: 45px;
     color: #7B00FF;
-    margin-bottom: 12px;
+}
+
+.settings-user-greeting {
+    font-size: 20px;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+/* Settings Navigation Tabs Bar */
+.settings-nav-tabs {
     display: flex;
     align-items: center;
     gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 8px;
     border-bottom: 1px solid rgba(123, 0, 255, 0.3);
-    padding-bottom: 6px;
+    scrollbar-width: none;
+}
+
+.settings-nav-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.nav-tab-btn {
+    background: rgba(123, 0, 255, 0.1);
+    border: 1px solid rgba(123, 0, 255, 0.3);
+    color: #bbbbbb;
+    padding: 8px 14px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+}
+
+.nav-tab-btn:hover {
+    background: rgba(123, 0, 255, 0.25);
+    color: #ffffff;
+}
+
+.nav-tab-btn.active {
+    background: linear-gradient(135deg, #7B00FF 0%, #0044FF 100%);
+    color: #ffffff;
+    border-color: transparent;
+    box-shadow: 0 0 12px rgba(123, 0, 255, 0.6);
+}
+
+.logout-tab-btn {
+    background: rgba(239, 68, 68, 0.15) !important;
+    border-color: #ef4444 !important;
+    color: #f87171 !important;
+    margin-left: auto;
+}
+
+.logout-tab-btn:hover {
+    background: #ef4444 !important;
+    color: #ffffff !important;
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.7);
+}
+
+.empty-tab-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    color: #777777;
+    gap: 12px;
+    text-align: center;
+}
+
+.empty-tab-placeholder i {
+    font-size: 38px;
+    color: #7B00FF;
+}
+
+/* Notification Custom Toggle Switch */
+.setting-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 15px 5px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #ffffff;
+}
+
+.switch-toggle {
+    position: relative;
+    display: inline-block;
+    width: 46px;
+    height: 24px;
+}
+
+.switch-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: #222222;
+    transition: .4s;
+    border: 1px solid #7B00FF;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 16px; width: 16px;
+    left: 3px; bottom: 3px;
+    background-color: white;
+    transition: .4s;
+}
+
+input:checked + .slider {
+    background-color: #7B00FF;
+    box-shadow: 0 0 10px #7B00FF;
+}
+
+input:checked + .slider:before {
+    transform: translateX(22px);
+}
+
+.slider.round {
+    border-radius: 34px;
+}
+
+.slider.round:before {
+    border-radius: 50%;
+}
+
+/* Logout Confirmation Modal UI */
+.confirm-card {
+    max-width: 380px !important;
+    text-align: center;
+}
+
+.warning-confirm-icon {
+    font-size: 40px;
+    color: #ef4444;
+    margin-bottom: 10px;
+}
+
+.confirm-btn-group {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.confirm-btn {
+    flex: 1;
+    padding: 10px;
+    border-radius: 12px;
+    font-size: 14px;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.btn-yes {
+    background: #ef4444;
+    color: #ffffff;
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.5);
+}
+
+.btn-no {
+    background: #222222;
+    color: #ffffff;
+    border: 1px solid #555;
+}
+
+.confirm-btn:hover {
+    transform: scale(1.05);
 }
 
 .readonly-input {
@@ -911,53 +1148,6 @@ body {
 
 .close-settings-btn:hover {
     color: #ffffff;
-}
-
-.profile-pic-upload-area {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 15px;
-}
-
-.avatar-preview-box {
-    width: 90px;
-    height: 90px;
-    border-radius: 50%;
-    border: 2px solid #7B00FF;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-    background: #000;
-    cursor: pointer;
-    position: relative;
-    box-shadow: 0 0 20px rgba(123, 0, 255, 0.5);
-}
-
-.avatar-preview-box img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.camera-overlay-icon {
-    position: absolute;
-    font-size: 22px;
-    color: #ffffff;
-    background: rgba(0, 0, 0, 0.5);
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    opacity: 0;
-    transition: opacity 0.2s;
-}
-
-.avatar-preview-box:hover .camera-overlay-icon {
-    opacity: 1;
 }
 
 .auth-form {
@@ -1039,7 +1229,7 @@ body {
     text-decoration: underline;
 }
 
-/* Fullscreen Sci-Fi Live Overlay - Exact Match to Reference Image */
+/* Fullscreen Sci-Fi Live Overlay */
 .live-voice-overlay {
     display: none;
     position: fixed;
@@ -1102,7 +1292,7 @@ body {
     justify-content: center;
 }
 
-/* Exact Deep Purple Sci-Fi Glowing Sphere Animation */
+/* Deep Purple Sci-Fi Glowing Sphere Animation */
 .core-sci-fi-orb {
     width: 160px;
     height: 160px;

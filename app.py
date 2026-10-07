@@ -145,7 +145,7 @@ def get_firebase_context_for_ai(is_creator: bool) -> str:
         print(f"Error generating Firebase AI Context: {e}")
         return "[Firebase Context Error: Failed to fetch live stats]"
 
-# ================= SEARCH PROVIDERS WITH FALLBACK =================
+# ================= SEARCH PROVIDERS WITH IMAGE SEARCH SUPPORT =================
 
 def search_tavily(query: str) -> str:
     """Primary Search Provider - Tavily AI Search"""
@@ -158,7 +158,8 @@ def search_tavily(query: str) -> str:
     payload = json.dumps({
         "api_key": api_key.strip(),
         "query": query,
-        "max_results": 4
+        "max_results": 4,
+        "include_images": True
     }).encode('utf-8')
 
     req = urllib.request.Request(url, data=payload, headers=headers)
@@ -168,8 +169,16 @@ def search_tavily(query: str) -> str:
         for r in data.get("results", []):
             title = r.get("title", "")
             content = r.get("content", "")
+            source_url = r.get("url", "")
             if title or content:
-                results.append(f"📌 Title: {title}\nSnippet: {content}")
+                results.append(f"📌 Title: {title}\nSnippet: {content}\nSource Link: {source_url}")
+        
+        images = data.get("images", [])
+        if images:
+            results.append("\n🖼️ Found Images:")
+            for img_url in images[:3]:
+                results.append(f"Image Direct URL: {img_url}")
+                
         return "\n\n".join(results)
 
 def search_serpapi(query: str) -> str:
@@ -191,20 +200,36 @@ def search_serpapi(query: str) -> str:
         for r in data.get("organic_results", [])[:4]:
             title = r.get("title", "")
             snippet = r.get("snippet", "")
+            link = r.get("link", "")
             if title or snippet:
-                results.append(f"📌 Title: {title}\nSnippet: {snippet}")
+                results.append(f"📌 Title: {title}\nSnippet: {snippet}\nSource Link: {link}")
         return "\n\n".join(results)
 
 def search_ddg(query: str) -> str:
-    """Fallback Search Provider 2 - DuckDuckGo"""
+    """Fallback Search Provider 2 - DuckDuckGo (Text & Image Search)"""
     results = []
     clean_query = query.strip()
     with DDGS() as ddgs:
         for r in ddgs.text(clean_query, max_results=4):
             title = r.get('title', '')
             snippet = r.get('body', '')
+            link = r.get('href', '')
             if title or snippet:
-                results.append(f"📌 Title: {title}\nSnippet: {snippet}")
+                results.append(f"📌 Title: {title}\nSnippet: {snippet}\nSource Link: {link}")
+        
+        try:
+            img_results = ddgs.images(clean_query, max_results=3)
+            if img_results:
+                results.append("\n🖼️ Found Web Images:")
+                for img in img_results:
+                    img_title = img.get('title', 'Image')
+                    img_url = img.get('image', '')
+                    source = img.get('url', '')
+                    if img_url:
+                        results.append(f"Image Title: {img_title}\nImage URL: {img_url}\nSource URL: {source}")
+        except Exception as img_err:
+            print(f"DDG Image Search Error: {img_err}")
+
     return "\n\n".join(results)
 
 def web_search(query: str) -> str:
@@ -214,8 +239,8 @@ def web_search(query: str) -> str:
     
     search_providers = [
         ("Tavily AI Search", search_tavily),
-        ("SerpAPI", search_serpapi),
-        ("DuckDuckGo Search", search_ddg)
+        ("DuckDuckGo Search", search_ddg),
+        ("SerpAPI", search_serpapi)
     ]
 
     for provider_name, search_fn in search_providers:
@@ -386,7 +411,9 @@ system_instruction = """
 - කවුරුන් හෝ "ඔයාගේ නම මොකක්ද?" කියා ඇසුවොත් "මගේ නම Nexuz" ලෙස පවසන්න.
 
 ප්‍රධාන රීති:
-1. Live Web Search: සජීවීව ලැබෙන තොරතුරු භාවිතයෙන් අසන ලද ප්‍රශ්නයට නිවැරදි, යාවත්කාලීන පිළිතුර සපයන්න.
+1. Live Web Search & Weather & News & Images:
+   - පරිශීලකයා කාලගුණය (Weather), පුවත් (News) හෝ අන්තර්ජාලයෙන් පින්තූරයක් (Image) ඉල්ලූ විට, සජීවී Search Results වල ලැබෙන ඡායාරූප Direct Link එක Markdown Image ලෙසත් `![Image Title](Image_URL)`, ලබාගත් වෙබ් අඩවියේ Source URL එකත් සපයන්න.
+   - කාලගුණය, පුවත් සහ විස්තර ලබාදෙන විට සැමවිටම ලබාගත් වෙබ් අඩවියේ මූලාශ්‍රය (Source Link) සහ අදාළ පින්තූර ලබා දෙන්න.
 2. Code & Formatting: Code සපයන විට පිරිසිදුව Markdown Code blocks (```language ... ```) තුළ ලබාදෙන්න.
 3. Chat Context: කලින් කතාබහ කළ මාතෘකාව මතක තබාගෙන අනුගාමික ප්‍රශ්න වලට ස්වාභාවිකව පිළිතුරු දෙන්න.
 4. Database Privacy:
@@ -423,6 +450,8 @@ class UpdateProfileRequest(BaseModel):
     first_name: str
     last_name: str
     age: Optional[str] = None
+    country: Optional[str] = None
+    purpose: Optional[str] = None
     password: Optional[str] = None
     voice_preference: Optional[str] = "male"
     profile_pic: Optional[str] = None
@@ -471,6 +500,7 @@ async def register(req: AuthRequest):
         "full_name": full_name,
         "age": req.age,
         "country": req.country,
+        "purpose": req.purpose,
         "email": req.email,
         "is_creator": is_creator,
         "voice_preference": "male",
@@ -498,10 +528,17 @@ async def login(req: AuthRequest):
 @app.post("/api/update_profile")
 async def update_profile(req: UpdateProfileRequest):
     update_dict = {
+        "first_name": req.first_name,
+        "last_name": req.last_name,
+        "full_name": f"{req.first_name} {req.last_name}".strip(),
         "profile_pic": req.profile_pic or ""
     }
     if req.age:
         update_dict["age"] = req.age
+    if req.country:
+        update_dict["country"] = req.country
+    if req.purpose:
+        update_dict["purpose"] = req.purpose
     if req.password and len(req.password.strip()) > 0:
         update_dict["password"] = hash_password(req.password.strip())
     if req.voice_preference:
@@ -537,7 +574,7 @@ async def chat_endpoint(req: ChatRequest):
 
     prompt_content = f"{context_str}Current User Question: {user_prompt}"
     if search_context:
-        prompt_content = f"[Real-time Web Search Results]:\n{search_context}\n\n" + prompt_content
+        prompt_content = f"[Real-time Web Search Results & Images]:\n{search_context}\n\n" + prompt_content
 
     user_first_name = req.first_name or "User"
     user_full_name = req.full_name or user_first_name
@@ -566,10 +603,8 @@ async def chat_endpoint(req: ChatRequest):
     # Save to Firestore under user's sub-collection
     if db and req.session_id and req.user_id and req.user_id != "guest":
         try:
-            # User ගේ Sub-collection එකට path එක සැකසීම
             session_ref = db.collection("users").document(req.user_id).collection("chat_sessions").document(req.session_id)
             
-            # Session document එක update හෝ create කිරීම
             session_ref.set({
                 "user_id": req.user_id,
                 "title": user_prompt[:30],
@@ -577,7 +612,6 @@ async def chat_endpoint(req: ChatRequest):
                 "created_at": firestore.SERVER_TIMESTAMP
             }, merge=True)
 
-            # Messages එකතු කිරීම
             messages_ref = session_ref.collection("messages")
             messages_ref.add({
                 "role": "user",
@@ -604,7 +638,6 @@ async def get_user_chat_history(user_id: str):
     if not db or not user_id or user_id == "guest":
         return {"success": False, "sessions": []}
     try:
-        # අලුත්ම Sessions උඩට එන ලෙස Order කර ලබාගැනීම
         sessions_ref = db.collection("users").document(user_id).collection("chat_sessions")
         docs = sessions_ref.order_by("last_updated", direction=firestore.Query.DESCENDING).stream()
         

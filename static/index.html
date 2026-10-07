@@ -90,73 +90,154 @@
         </div>
     </div>
 
-    <!-- SETTINGS & PROFILE MODAL -->
+    <!-- NEW GEMINI-STYLE SETTINGS & PROFILE MODAL -->
     <div class="auth-modal-overlay" id="settingsModal" style="display: none;">
-        <div class="auth-card settings-card">
+        <div class="auth-card settings-card modern-gemini-settings">
             <button class="close-settings-btn" onclick="closeSettingsModal()"><i class="fa-solid fa-xmark"></i></button>
-            <div class="auth-header">
-                <h2><i class="fa-solid fa-gear" style="color: #7B00FF;"></i> Settings</h2>
+            
+            <!-- 1. TOP PROFILE HEADER (Gemini Style) -->
+            <div class="settings-profile-header">
+                <div class="avatar-preview-box brand-avatar-glow" onclick="document.getElementById('profilePicInput').click()" title="Change Profile Picture">
+                    <img id="settingsAvatarPreview" src="" alt="Profile Preview" style="display: none;">
+                    <i class="fa-solid fa-user default-avatar-icon" id="settingsDefaultAvatarIcon"></i>
+                    <i class="fa-solid fa-camera camera-overlay-icon"></i>
+                </div>
+                <input type="file" id="profilePicInput" accept="image/*" style="display: none;" onchange="handleProfilePicUpload(event)">
+                <h3 class="settings-user-greeting" id="settingsGreeting">Hi, User!</h3>
             </div>
 
-            <!-- Profile Section Upper Part -->
-            <div class="settings-section">
-                <h3 class="settings-section-title"><i class="fa-solid fa-user"></i> Profile</h3>
+            <!-- 2. NAVIGATION MENU TABS -->
+            <div class="settings-nav-tabs">
+                <button class="nav-tab-btn active" onclick="switchSettingsTab('manage-account', this)">
+                    <i class="fa-solid fa-user-gear"></i> Manage Account
+                </button>
+                <button class="nav-tab-btn" onclick="switchSettingsTab('nexuz-voice', this)">
+                    <i class="fa-solid fa-microphone-lines"></i> Nexuz Voice
+                </button>
+                <button class="nav-tab-btn" onclick="switchSettingsTab('personalization', this)">
+                    <i class="fa-solid fa-sliders"></i> Personalization
+                </button>
+                <button class="nav-tab-btn" onclick="switchSettingsTab('notifications', this)">
+                    <i class="fa-solid fa-bell"></i> Notifications
+                </button>
+                <button class="nav-tab-btn" onclick="switchSettingsTab('about', this)">
+                    <i class="fa-solid fa-circle-info"></i> About
+                </button>
+                <button class="nav-tab-btn logout-tab-btn" onclick="showLogoutConfirmation()">
+                    <i class="fa-solid fa-right-from-bracket"></i> Logout
+                </button>
+            </div>
+
+            <!-- 3. TAB CONTENT CONTAINERS -->
+            <div class="settings-tab-content-wrapper">
                 
-                <div class="profile-pic-upload-area">
-                    <div class="avatar-preview-box" onclick="document.getElementById('profilePicInput').click()" title="Change Profile Picture">
-                        <img id="settingsAvatarPreview" src="" alt="Profile Preview" style="display: none;">
-                        <i class="fa-solid fa-camera camera-overlay-icon"></i>
-                    </div>
-                    <input type="file" id="profilePicInput" accept="image/*" style="display: none;" onchange="handleProfilePicUpload(event)">
+                <!-- TAB 1: MANAGE ACCOUNT -->
+                <div class="tab-content active" id="tab-manage-account">
+                    <form class="auth-form" onsubmit="saveSettings(event)">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>පළමු නම (First Name)</label>
+                                <input type="text" id="setFirstName" placeholder="Chamath">
+                            </div>
+                            <div class="form-group">
+                                <label>දෙවන නම (Last Name)</label>
+                                <input type="text" id="setLastName" placeholder="Manujaya">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>වයස (Age)</label>
+                                <input type="number" id="setAge" min="10" max="100" required>
+                            </div>
+                            <div class="form-group">
+                                <label>රට (Country)</label>
+                                <input type="text" id="setCountry" placeholder="Sri Lanka">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>පාවිච්චි කරන අරමුණ (Purpose)</label>
+                            <input type="text" id="setPurpose" placeholder="Purpose">
+                        </div>
+
+                        <div class="form-group">
+                            <label>විද්‍යුත් තැපෑල (Email)</label>
+                            <input type="email" id="setEmail" readonly disabled class="readonly-input">
+                        </div>
+
+                        <div class="form-group">
+                            <label>මුරපදය (Password)</label>
+                            <input type="password" id="setPassword" placeholder="නව මුරපදය (වෙනස් කිරීමට පමණක් ටයිප් කරන්න)">
+                        </div>
+
+                        <button type="submit" class="auth-btn">Save Changes</button>
+                    </form>
                 </div>
 
-                <form class="auth-form" onsubmit="saveSettings(event)">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>පළමු නම (First Name)</label>
-                            <input type="text" id="setFirstName" readonly disabled class="readonly-input">
-                        </div>
-                        <div class="form-group">
-                            <label>දෙවන නම (Last Name)</label>
-                            <input type="text" id="setLastName" readonly disabled class="readonly-input">
-                        </div>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>වයස (Age)</label>
-                            <input type="number" id="setAge" min="10" max="100" required>
-                        </div>
-                        <div class="form-group">
-                            <label>රට (Country)</label>
-                            <input type="text" id="setCountry" readonly disabled class="readonly-input">
-                        </div>
-                    </div>
-
+                <!-- TAB 2: NEXUZ VOICE -->
+                <div class="tab-content" id="tab-nexuz-voice" style="display: none;">
                     <div class="form-group">
-                        <label>විද්‍යුත් තැපෑල (Email)</label>
-                        <input type="email" id="setEmail" readonly disabled class="readonly-input">
+                        <label>AI Voice Gender Selection</label>
+                        <select id="voiceSelect" onchange="updateVoiceModelOptions()">
+                            <option value="male">Male Voice (පිරිමි හඬ)</option>
+                            <option value="female">Female Voice (ගැහැණු හඬ)</option>
+                        </select>
                     </div>
 
-                    <div class="form-group">
-                        <label>මුරපදය (Password)</label>
-                        <input type="password" id="setPassword" placeholder="නව මුරපදය (වෙනස් කිරීමට පමණක් ටයිප් කරන්න)">
+                    <div class="form-group" style="margin-top: 15px;">
+                        <label>Voice Model Style</label>
+                        <select id="voiceStyleSelect">
+                            <option value="nova">Nova (Natural & Soft)</option>
+                            <option value="echo">Echo (Warm & Clear)</option>
+                            <option value="onyx">Onyx (Deep & Professional)</option>
+                            <option value="breeze">Breeze (Energetic)</option>
+                        </select>
                     </div>
+                </div>
 
-                    <!-- Nexuz Voices Section Inside Settings -->
-                    <div class="settings-section voices-section">
-                        <h3 class="settings-section-title"><i class="fa-solid fa-microphone-lines"></i> Nexuz Voices</h3>
-                        <div class="form-group">
-                            <label>AI Voice Gender Selection</label>
-                            <select id="voiceSelect">
-                                <option value="male">Male Voice (පිරිමි හඬ)</option>
-                                <option value="female">Female Voice (ගැහැණු හඬ)</option>
-                            </select>
-                        </div>
+                <!-- TAB 3: PERSONALIZATION (EMPTY FOR NOW) -->
+                <div class="tab-content" id="tab-personalization" style="display: none;">
+                    <div class="empty-tab-placeholder">
+                        <i class="fa-solid fa-palette"></i>
+                        <p>Personalization සැකසුම් ළඟදීම ලබා ගත හැක.</p>
                     </div>
+                </div>
 
-                    <button type="submit" class="auth-btn">Save Changes</button>
-                </form>
+                <!-- TAB 4: NOTIFICATIONS -->
+                <div class="tab-content" id="tab-notifications" style="display: none;">
+                    <div class="setting-toggle-row">
+                        <span>App Notifications</span>
+                        <label class="switch-toggle">
+                            <input type="checkbox" id="notificationToggle" checked>
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- TAB 5: ABOUT (EMPTY FOR NOW) -->
+                <div class="tab-content" id="tab-about" style="display: none;">
+                    <div class="empty-tab-placeholder">
+                        <i class="fa-solid fa-shield-halved"></i>
+                        <p>Nexuz AI v1.0 | Developed by Chamath Manujaya</p>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- LOGOUT CONFIRMATION POPUP MODAL -->
+    <div class="auth-modal-overlay" id="logoutConfirmModal" style="display: none;">
+        <div class="auth-card confirm-card">
+            <div class="auth-header">
+                <i class="fa-solid fa-triangle-exclamation warning-confirm-icon"></i>
+                <h2>Logout Confirmation</h2>
+                <p>ඔබට පද්ධතියෙන් ඉවත් වීමට අවශ්‍යද?</p>
+            </div>
+            <div class="confirm-btn-group">
+                <button class="confirm-btn btn-yes" onclick="confirmLogout(true)">Yes</button>
+                <button class="confirm-btn btn-no" onclick="confirmLogout(false)">No</button>
             </div>
         </div>
     </div>
@@ -212,7 +293,7 @@
                 <button class="settings-btn" onclick="openSettingsModal()" title="Settings">
                     <i class="fa-solid fa-gear"></i>
                 </button>
-                <button class="settings-btn" onclick="logoutUser()" title="Logout">
+                <button class="settings-btn" onclick="showLogoutConfirmation()" title="Logout">
                     <i class="fa-solid fa-right-from-bracket"></i>
                 </button>
             </div>

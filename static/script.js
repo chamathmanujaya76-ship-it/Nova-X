@@ -36,7 +36,7 @@ function checkUserAuth() {
     }
 }
 
-// Update User Profile Display in Sidebar
+// Update User Profile Display in Sidebar & Settings Header
 function updateSidebarUserDisplay() {
     if (!currentUser) return;
 
@@ -44,10 +44,17 @@ function updateSidebarUserDisplay() {
     const creatorBadgeElem = document.getElementById("creatorBadge");
     const userAvatarImg = document.getElementById("userAvatarImg");
     const defaultUserIcon = document.getElementById("defaultUserIcon");
+    
+    const settingsGreeting = document.getElementById("settingsGreeting");
+
+    const fullName = currentUser.full_name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.first_name || "Account User";
 
     if (userDisplayElem) {
-        const fullName = currentUser.full_name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.first_name || "Account User";
         userDisplayElem.innerText = fullName;
+    }
+
+    if (settingsGreeting) {
+        settingsGreeting.innerText = `Hi, ${currentUser.first_name || 'User'}!`;
     }
 
     if (currentUser.email && currentUser.email.toLowerCase() === "chamathmanujaya76@gmail.com") {
@@ -148,14 +155,46 @@ async function handleLogin(e) {
     }
 }
 
-function logoutUser() {
-    if (confirm("ඔබට Account එකෙන් ඉවත් වීමට අවශ්‍යද?")) {
+// Show Logout Confirmation Modal
+function showLogoutConfirmation() {
+    const modal = document.getElementById("logoutConfirmModal");
+    if (modal) modal.style.display = "flex";
+}
+
+// Confirm Logout Action (Yes / No)
+function confirmLogout(isConfirmed) {
+    const modal = document.getElementById("logoutConfirmModal");
+    if (modal) modal.style.display = "none";
+
+    if (isConfirmed) {
         localStorage.removeItem("nexuz_user_data");
         location.reload();
     }
 }
 
-// Settings Modal & Profile Photo Setup
+// Settings Modal Navigation Tabs Switcher
+function switchSettingsTab(tabName, btnElem) {
+    const tabs = document.querySelectorAll(".tab-content");
+    tabs.forEach(tab => {
+        tab.style.display = "none";
+        tab.classList.remove("active");
+    });
+
+    const buttons = document.querySelectorAll(".nav-tab-btn");
+    buttons.forEach(btn => btn.classList.remove("active"));
+
+    const targetTab = document.getElementById(`tab-${tabName}`);
+    if (targetTab) {
+        targetTab.style.display = "block";
+        targetTab.classList.add("active");
+    }
+
+    if (btnElem) {
+        btnElem.classList.add("active");
+    }
+}
+
+// Settings Modal Setup
 function openSettingsModal() {
     const modal = document.getElementById("settingsModal");
     if (!modal) return;
@@ -165,6 +204,7 @@ function openSettingsModal() {
         document.getElementById("setLastName").value = currentUser.last_name || "";
         document.getElementById("setAge").value = currentUser.age || "";
         document.getElementById("setCountry").value = currentUser.country || "";
+        document.getElementById("setPurpose").value = currentUser.purpose || "";
         document.getElementById("setEmail").value = currentUser.email || "";
         document.getElementById("setPassword").value = "";
         
@@ -174,13 +214,19 @@ function openSettingsModal() {
         }
         
         const preview = document.getElementById("settingsAvatarPreview");
+        const defaultIcon = document.getElementById("settingsDefaultAvatarIcon");
+        
         if (currentUser.profile_pic) {
             preview.src = currentUser.profile_pic;
             preview.style.display = "block";
+            if (defaultIcon) defaultIcon.style.display = "none";
         } else {
             preview.style.display = "none";
+            if (defaultIcon) defaultIcon.style.display = "block";
         }
     }
+    
+    switchSettingsTab('manage-account', document.querySelector('.nav-tab-btn'));
     modal.style.display = "flex";
 }
 
@@ -197,8 +243,12 @@ function handleProfilePicUpload(event) {
     reader.onload = function (e) {
         const base64Pic = e.target.result;
         const preview = document.getElementById("settingsAvatarPreview");
+        const defaultIcon = document.getElementById("settingsDefaultAvatarIcon");
+        
         preview.src = base64Pic;
         preview.style.display = "block";
+        if (defaultIcon) defaultIcon.style.display = "none";
+        
         preview.dataset.base64 = base64Pic;
     };
     reader.readAsDataURL(file);
@@ -208,7 +258,11 @@ async function saveSettings(e) {
     e.preventDefault();
     if (!currentUser) return;
 
+    const newFirstName = document.getElementById("setFirstName").value.trim();
+    const newLastName = document.getElementById("setLastName").value.trim();
     const newAge = document.getElementById("setAge").value.trim();
+    const newCountry = document.getElementById("setCountry").value.trim();
+    const newPurpose = document.getElementById("setPurpose").value.trim();
     const newPassword = document.getElementById("setPassword").value.trim();
     const voicePref = document.getElementById("voiceSelect").value;
     const preview = document.getElementById("settingsAvatarPreview");
@@ -220,9 +274,11 @@ async function saveSettings(e) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 user_id: currentUser.id,
-                first_name: currentUser.first_name,
-                last_name: currentUser.last_name,
+                first_name: newFirstName,
+                last_name: newLastName,
                 age: newAge,
+                country: newCountry,
+                purpose: newPurpose,
                 password: newPassword,
                 voice_preference: voicePref,
                 profile_pic: newPic
@@ -231,7 +287,12 @@ async function saveSettings(e) {
 
         const data = await res.json();
         if (data.success) {
+            currentUser.first_name = newFirstName;
+            currentUser.last_name = newLastName;
+            currentUser.full_name = `${newFirstName} ${newLastName}`.trim();
             currentUser.age = newAge;
+            currentUser.country = newCountry;
+            currentUser.purpose = newPurpose;
             currentUser.voice_preference = voicePref;
             currentUser.profile_pic = newPic;
 
