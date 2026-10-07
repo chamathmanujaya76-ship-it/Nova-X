@@ -6,6 +6,8 @@
     <title>Nexuz | AI Assistant</title>
     <link rel="stylesheet" href="/static/style.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- THREE.JS 3D GRAPHICS LIBRARY -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
 
@@ -108,7 +110,7 @@
 
             <!-- 2. SETTINGS CONTENT BODY WITH VERTICAL TABS -->
             <div class="settings-body-layout">
-                <!-- VERTICAL MENU LIST (Pahalata List Image 7 Style) -->
+                <!-- VERTICAL MENU LIST -->
                 <div class="settings-nav-tabs-vertical">
                     <button class="nav-tab-btn active" onclick="switchSettingsTab('manage-account', this)">
                         <i class="fa-solid fa-user-gear"></i> <span>Manage Account</span>
@@ -399,7 +401,7 @@
         </main>
     </div>
 
-    <!-- FULLSCREEN SCI-FI NEXUZ LIVE VOICE MODE OVERLAY -->
+    <!-- FULLSCREEN SCI-FI NEXUZ LIVE VOICE MODE OVERLAY WITH THREE.JS CANVAS -->
     <div class="live-voice-overlay" id="liveVoiceOverlay">
         <div class="live-header">
             <div class="live-title"><i class="fa-solid fa-atom"></i> Nexuz Live Voice Mode</div>
@@ -408,13 +410,8 @@
 
         <div class="sci-fi-stage">
             <div class="orb-visualizer-container" id="orbContainer">
-                <div class="sci-fi-ring ring-outer"></div>
-                <div class="sci-fi-ring ring-mid"></div>
-                <div class="sci-fi-ring ring-inner"></div>
-                <div class="sound-wave-glow" id="soundWaveGlow"></div>
-                <div class="core-sci-fi-orb" id="coreOrb">
-                    <div class="orb-core-pulse"></div>
-                </div>
+                <!-- 3D WebGL Particle Visualizer Canvas -->
+                <canvas id="threeGlowCanvas"></canvas>
             </div>
             <div class="voice-status-text" id="liveVoiceStatus">සවන්දෙමින් පවතී... කතා කරන්න...</div>
             <div class="transcript-preview" id="liveTranscript"></div>

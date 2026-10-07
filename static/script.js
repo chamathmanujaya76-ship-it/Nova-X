@@ -13,6 +13,13 @@ let analyser = null;
 let micStream = null;
 let animFrameId = null;
 
+// Three.js 3D Wave Particle Visualizer Variables
+let scene, camera, renderer, particleSystem;
+let numParticles = 4000;
+let particlePositions, originalPositions, particleScales;
+let isAiSpeaking = false;
+let aiVoiceWaveTime = 0;
+
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 // App Initialization on Page Load
@@ -582,7 +589,7 @@ async function sendMessage(presetMessage = null) {
         const data = await res.json();
         const botMsgElem = document.getElementById(loadingId);
 
-        // Rate Limit Handling Included
+        // Rate Limit Handling
         if (data.error_type === "rate_limit") {
             if (botMsgElem) {
                 botMsgElem.innerHTML = `
@@ -744,51 +751,150 @@ function startVoiceToText() {
     };
 }
 
-// Fullscreen Sci-Fi Live Voice Visualizer
+// =========================================================================
+// THREE.JS 3D GLOWING WAVEFORM PARTICLE SYSTEM ENGINE FOR NEXUZ LIVE VOICE
+// =========================================================================
+
+function createGlowTexture() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gradient.addColorStop(0, 'rgba(255,255,255,1)');
+    gradient.addColorStop(0.3, 'rgba(160,32,240,0.8)');
+    gradient.addColorStop(0.7, 'rgba(123,0,255,0.3)');
+    gradient.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 64, 64);
+
+    const texture = new THREE.Texture(canvas);
+    texture.needsUpdate = true;
+    return texture;
+}
+
+function initThreeGlowVisualizer() {
+    const canvasElem = document.getElementById("threeGlowCanvas");
+    if (!canvasElem) return;
+
+    scene = new THREE.Scene();
+    
+    camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
+    camera.position.z = 320;
+
+    renderer = new THREE.WebGLRenderer({ canvas: canvasElem, alpha: true, antialias: true });
+    renderer.setSize(420, 420);
+    renderer.setPixelRatio(window.devicePixelRatio ? window.devicePixelRatio : 1);
+
+    const geometry = new THREE.BufferGeometry();
+    particlePositions = new Float32Array(numParticles * 3);
+    originalPositions = new Float32Array(numParticles * 3);
+
+    const baseRadius = 110;
+    const rings = 40;
+    const particlesPerRing = numParticles / rings;
+
+    let index = 0;
+    for (let r = 0; r < rings; r++) {
+        const ringRadius = baseRadius + (r * 1.5);
+        for (let p = 0; p < particlesPerRing; p++) {
+            const angle = (p / particlesPerRing) * Math.PI * 2;
+            const x = Math.cos(angle) * ringRadius;
+            const y = Math.sin(angle) * ringRadius;
+            const z = (Math.random() - 0.5) * 15;
+
+            particlePositions[index * 3] = x;
+            particlePositions[index * 3 + 1] = y;
+            particlePositions[index * 3 + 2] = z;
+
+            originalPositions[index * 3] = x;
+            originalPositions[index * 3 + 1] = y;
+            originalPositions[index * 3 + 2] = z;
+
+            index++;
+        }
+    }
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+
+    const material = new THREE.PointsMaterial({
+        color: 0x9d00ff,
+        size: 5.5,
+        map: createGlowTexture(),
+        transparent: true,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+    });
+
+    particleSystem = new THREE.Points(geometry, material);
+    scene.add(particleSystem);
+}
+
+// Audio Stream Context Setup
 async function initAudioVisualizer() {
     try {
         micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 64;
+        analyser.fftSize = 128;
 
         const source = audioCtx.createMediaStreamSource(micStream);
         source.connect(analyser);
 
+        if (!scene) initThreeGlowVisualizer();
         visualizeAudio();
     } catch (e) {
         console.log("Audio visualizer init error:", e);
     }
 }
 
+// Live Real-Time Rendering & Wave Displacement Loop
 function visualizeAudio() {
-    if (!isLiveVoiceActive || !analyser) return;
+    if (!isLiveVoiceActive) return;
 
-    const dataArray = new Uint8Array(analyser.frequencyBinCount);
-    analyser.getByteFrequencyData(dataArray);
+    let averageFrequency = 0;
+    const dataArray = new Uint8Array(analyser ? analyser.frequencyBinCount : 0);
 
-    let sum = 0;
-    for (let i = 0; i < dataArray.length; i++) {
-        sum += dataArray[i];
-    }
-    const average = sum / dataArray.length;
-
-    const coreOrb = document.getElementById("coreOrb");
-    const soundWaveGlow = document.getElementById("soundWaveGlow");
-
-    const scale = 1 + (average / 90); 
-    const glow = 25 + (average * 1.2);
-
-    if (coreOrb) {
-        coreOrb.style.transform = `scale(${scale})`;
-        coreOrb.style.boxShadow = `0 0 ${glow + 20}px #8B00FF, inset 0 0 ${glow + 10}px #3A0088`;
+    if (analyser) {
+        analyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+        averageFrequency = sum / (dataArray.length || 1);
     }
 
-    if (soundWaveGlow) {
-        soundWaveGlow.style.transform = `scale(${scale * 1.25})`;
-        soundWaveGlow.style.opacity = Math.min(0.9, average / 40);
+    // Dynamic Wave Motion Processing
+    aiVoiceWaveTime += 0.05;
+    const positions = particleSystem.geometry.attributes.position.array;
+    const freqLen = dataArray.length || 1;
+
+    for (let i = 0; i < numParticles; i++) {
+        const idx = i * 3;
+        const ox = originalPositions[idx];
+        const oy = originalPositions[idx + 1];
+        const oz = originalPositions[idx + 2];
+
+        const angle = Math.atan2(oy, ox);
+        const freqIndex = Math.floor(((angle + Math.PI) / (Math.PI * 2)) * freqLen) % freqLen;
+        
+        let audioFactor = (dataArray[freqIndex] || 0) / 255;
+
+        // Active Displacement when AI Speaks
+        if (isAiSpeaking) {
+            audioFactor = Math.abs(Math.sin(aiVoiceWaveTime * 3 + angle * 4)) * 0.85 + 0.15;
+        }
+
+        const wavePulse = Math.sin(angle * 6 + aiVoiceWaveTime * 4) * (audioFactor * 35);
+        const radialMultiplier = 1 + (audioFactor * 0.35) + (wavePulse / 180);
+
+        positions[idx] = ox * radialMultiplier;
+        positions[idx + 1] = oy * radialMultiplier;
+        positions[idx + 2] = oz + (audioFactor * 25 * Math.sin(angle * 8 + aiVoiceWaveTime * 2));
     }
 
+    particleSystem.geometry.attributes.position.needsUpdate = true;
+    particleSystem.rotation.z += 0.003;
+
+    renderer.render(scene, camera);
     animFrameId = requestAnimationFrame(visualizeAudio);
 }
 
@@ -810,6 +916,7 @@ function openLiveVoiceMode() {
 
 function closeLiveVoiceMode() {
     isLiveVoiceActive = false;
+    isAiSpeaking = false;
     if (recognition) recognition.stop();
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     if (micStream) micStream.getTracks().forEach(t => t.stop());
@@ -823,6 +930,9 @@ function speakText(text) {
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.rate = 1.0;
+
+        utterance.onstart = () => { isAiSpeaking = true; };
+        utterance.onend = () => { isAiSpeaking = false; };
 
         const selectedGender = (currentUser && currentUser.voice_preference) ? currentUser.voice_preference : "male";
         const voices = window.speechSynthesis.getVoices();
