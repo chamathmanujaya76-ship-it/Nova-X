@@ -5,7 +5,11 @@
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 
-/* Custom Gemini-style Subtle Scrollbar Global Setup */
+/* Custom Subtle Scrollbar Moved Right-most Edge */
+html, body {
+    scrollbar-gutter: stable;
+}
+
 ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -16,12 +20,12 @@
 }
 
 ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.2);
     border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: rgba(123, 0, 255, 0.4);
+    background: rgba(123, 0, 255, 0.6);
 }
 
 body {
@@ -52,7 +56,7 @@ body {
     z-index: 99;
 }
 
-/* Pitch Black Gemini Style Sidebar - Default Collapsed/Closed */
+/* Gemini Style Pitch-Black Ultra-Narrow Sidebar */
 .sidebar {
     width: 260px;
     height: 100vh;
@@ -60,14 +64,14 @@ body {
     border-right: 1.5px solid rgba(123, 0, 255, 0.35) !important;
     display: flex;
     flex-direction: column;
-    padding: 15px;
+    padding: 15px 12px;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     z-index: 100;
 }
 
 .sidebar.collapsed {
-    width: 65px;
-    padding: 15px 10px;
+    width: 58px !important;
+    padding: 15px 8px !important;
 }
 
 .sidebar.collapsed .sidebar-brand-text,
@@ -75,7 +79,7 @@ body {
 .sidebar.collapsed .sidebar-history,
 .sidebar.collapsed .user-name,
 .sidebar.collapsed .creator-badge {
-    display: none;
+    display: none !important;
 }
 
 .sidebar-top {
@@ -83,7 +87,7 @@ body {
     align-items: center;
     gap: 12px;
     margin-bottom: 20px;
-    padding-left: 5px;
+    padding-left: 2px;
 }
 
 .sidebar-toggle-btn {
@@ -92,7 +96,7 @@ body {
     color: #7B00FF;
     font-size: 20px;
     cursor: pointer;
-    padding: 5px 8px;
+    padding: 5px;
     border-radius: 8px;
     transition: all 0.2s;
     display: flex;
@@ -125,10 +129,11 @@ body {
     background: linear-gradient(135deg, #7B00FF 0%, #0044FF 100%) !important;
     color: #ffffff !important;
     border: none !important;
-    padding: 10px 16px;
+    padding: 10px 14px;
     border-radius: 14px;
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 10px;
     font-size: 14px;
     font-weight: 700;
@@ -146,6 +151,11 @@ body {
 .sidebar-history {
     flex: 1;
     overflow-y: auto;
+    scrollbar-width: none;
+}
+
+.sidebar-history::-webkit-scrollbar {
+    display: none;
 }
 
 .history-title {
@@ -167,7 +177,7 @@ body {
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    padding: 8px 12px;
+    padding: 8px 10px;
     border-radius: 12px;
     font-size: 13px;
     color: #bbbbbb;
@@ -206,11 +216,12 @@ body {
     border-left: 3px solid #7B00FF;
 }
 
-/* Sidebar Bottom & User Profile */
+/* Sidebar Bottom Vertical Profile & Settings */
 .sidebar-bottom {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: space-between;
+    gap: 12px;
     padding-top: 15px;
     border-top: 1px solid rgba(123, 0, 255, 0.25);
 }
@@ -219,15 +230,12 @@ body {
     display: flex;
     align-items: center;
     gap: 10px;
-    font-size: 13px;
-    color: #e2e8f0;
+    width: 100%;
     overflow: hidden;
-    flex: 1;
 }
 
 .user-avatar-wrapper {
     cursor: pointer;
-    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -235,7 +243,7 @@ body {
 }
 
 .user-avatar-wrapper:hover {
-    transform: scale(1.08);
+    transform: scale(1.1);
 }
 
 .user-avatar-img {
@@ -286,7 +294,7 @@ body {
     background: transparent;
     border: none;
     color: #888888;
-    font-size: 16px;
+    font-size: 18px;
     cursor: pointer;
     padding: 6px;
     border-radius: 50%;
@@ -427,7 +435,7 @@ body {
     margin-top: 8px;
 }
 
-/* Nexuz Star Loading Animation Fix */
+/* Nexuz Star Loading Animation */
 @keyframes starPulseGlow {
     0% { transform: rotate(0deg) scale(1); filter: drop-shadow(0 0 10px #7B00FF); }
     50% { transform: rotate(180deg) scale(1.4); filter: drop-shadow(0 0 35px #7B00FF) drop-shadow(0 0 50px #0044FF); }
@@ -494,7 +502,7 @@ body {
     box-shadow: 0 0 15px rgba(123, 0, 255, 0.4);
 }
 
-/* Markdown & Code Block Touch-ups */
+/* Markdown Styling */
 .bot-msg h1, .bot-msg h2, .bot-msg h3 {
     margin: 12px 0 6px 0;
     color: #a855f7;
@@ -630,7 +638,7 @@ body {
     display: block;
 }
 
-/* Input Area & File Previews */
+/* Input Area */
 .input-wrapper {
     width: 100%;
     max-width: 760px;
@@ -683,7 +691,6 @@ body {
     margin-right: 5px;
 }
 
-/* Pitch Black Floating Input Box with Violet Glow */
 .glow-input-box {
     width: 100%;
     background: #06030E !important;
@@ -840,14 +847,14 @@ body {
     font-weight: 700;
 }
 
-/* User Account & Settings Modal Base */
+/* User Account Modals */
 .auth-modal-overlay {
     position: fixed;
     top: 0;
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: rgba(0, 0, 0, 0.94);
+    background: rgba(0, 0, 0, 0.88);
     backdrop-filter: blur(14px);
     z-index: 10000;
     display: flex;
@@ -869,27 +876,18 @@ body {
     max-height: 90vh;
 }
 
-/* ---------------- MODERN GEMINI SETTINGS UI FIXES ---------------- */
+/* TRANSPARENT MODERN GEMINI SETTINGS WITH VERTICAL TABS & GLOW BORDER */
 .modern-gemini-settings {
-    max-width: 550px !important;
+    max-width: 680px !important;
     padding: 25px !important;
+    background: rgba(10, 4, 22, 0.75) !important;
+    backdrop-filter: blur(25px) !important;
+    border: 2px solid #7B00FF !important;
+    box-shadow: 0 0 35px rgba(123, 0, 255, 0.6), 0 0 65px rgba(0, 68, 255, 0.4) !important;
     display: flex;
     flex-direction: column;
     gap: 15px;
-    overflow: hidden !important; /* Hide Container Scrollbar */
-}
-
-/* Settings Internal Scroll Area (Hidden Scrollbar) */
-.settings-tab-content-wrapper {
-    flex: 1;
-    overflow-y: auto;
-    padding-right: 2px;
-    scrollbar-width: none; /* Firefox Hidden Scrollbar */
-    -ms-overflow-style: none; /* IE/Edge Hidden Scrollbar */
-}
-
-.settings-tab-content-wrapper::-webkit-scrollbar {
-    display: none; /* Webkit Chrome/Safari Hidden Scrollbar */
+    overflow: hidden !important;
 }
 
 .settings-profile-header {
@@ -901,11 +899,11 @@ body {
 }
 
 .brand-avatar-glow {
-    width: 100px !important;
-    height: 100px !important;
+    width: 90px !important;
+    height: 90px !important;
     border-radius: 50% !important;
     border: 3px solid #7B00FF !important;
-    box-shadow: 0 0 25px rgba(123, 0, 255, 0.8), 0 0 45px rgba(0, 68, 255, 0.5) !important;
+    box-shadow: 0 0 25px rgba(123, 0, 255, 0.8) !important;
     position: relative;
     overflow: hidden;
     cursor: pointer;
@@ -922,45 +920,54 @@ body {
 }
 
 .default-avatar-icon {
-    font-size: 45px;
+    font-size: 40px;
     color: #7B00FF;
 }
 
 .settings-user-greeting {
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 700;
     color: #ffffff;
 }
 
-/* Settings Navigation Tabs Bar */
-.settings-nav-tabs {
+/* SETTINGS BODY TWO COLUMN LAYOUT */
+.settings-body-layout {
     display: flex;
-    align-items: center;
+    gap: 20px;
+    flex: 1;
+    overflow: hidden;
+}
+
+.settings-nav-tabs-vertical {
+    display: flex;
+    flex-direction: column;
     gap: 8px;
-    overflow-x: auto;
-    padding-bottom: 8px;
-    border-bottom: 1px solid rgba(123, 0, 255, 0.3);
+    width: 220px;
+    border-right: 1px solid rgba(123, 0, 255, 0.3);
+    padding-right: 15px;
+    overflow-y: auto;
     scrollbar-width: none;
 }
 
-.settings-nav-tabs::-webkit-scrollbar {
+.settings-nav-tabs-vertical::-webkit-scrollbar {
     display: none;
 }
 
 .nav-tab-btn {
-    background: rgba(123, 0, 255, 0.1);
-    border: 1px solid rgba(123, 0, 255, 0.3);
-    color: #bbbbbb;
-    padding: 8px 14px;
-    border-radius: 12px;
+    background: rgba(123, 0, 255, 0.08);
+    border: 1px solid rgba(123, 0, 255, 0.2);
+    color: #cccccc;
+    padding: 10px 14px;
+    border-radius: 14px;
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
-    white-space: nowrap;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 10px;
     transition: all 0.2s ease;
+    text-align: left;
+    width: 100%;
 }
 
 .nav-tab-btn:hover {
@@ -972,14 +979,14 @@ body {
     background: linear-gradient(135deg, #7B00FF 0%, #0044FF 100%);
     color: #ffffff;
     border-color: transparent;
-    box-shadow: 0 0 12px rgba(123, 0, 255, 0.6);
+    box-shadow: 0 0 15px rgba(123, 0, 255, 0.6);
 }
 
 .logout-tab-btn {
     background: rgba(239, 68, 68, 0.15) !important;
-    border-color: #ef4444 !important;
+    border-color: rgba(239, 68, 68, 0.4) !important;
     color: #f87171 !important;
-    margin-left: auto;
+    margin-top: auto;
 }
 
 .logout-tab-btn:hover {
@@ -988,13 +995,25 @@ body {
     box-shadow: 0 0 15px rgba(239, 68, 68, 0.7);
 }
 
+/* Settings Internal Content Area */
+.settings-tab-content-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 5px;
+    scrollbar-width: none;
+}
+
+.settings-tab-content-wrapper::-webkit-scrollbar {
+    display: none;
+}
+
 .empty-tab-placeholder {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     padding: 40px 20px;
-    color: #777777;
+    color: #888888;
     gap: 12px;
     text-align: center;
 }
@@ -1004,7 +1023,7 @@ body {
     color: #7B00FF;
 }
 
-/* Notification Custom Toggle Switch */
+/* Toggle Switch UI */
 .setting-toggle-row {
     display: flex;
     align-items: center;
@@ -1292,7 +1311,6 @@ input:checked + .slider:before {
     justify-content: center;
 }
 
-/* Deep Purple Sci-Fi Glowing Sphere Animation */
 .core-sci-fi-orb {
     width: 160px;
     height: 160px;
@@ -1408,8 +1426,26 @@ input:checked + .slider:before {
     box-shadow: 0 0 25px rgba(123, 0, 255, 0.8), 0 0 35px rgba(0, 68, 255, 0.6);
 }
 
-/* MOBILE RESPONSIVE CSS FIXES */
+/* Mobile Responsiveness */
 @media screen and (max-width: 768px) {
+    .settings-body-layout {
+        flex-direction: column;
+    }
+
+    .settings-nav-tabs-vertical {
+        width: 100%;
+        flex-direction: row;
+        overflow-x: auto;
+        border-right: none;
+        border-bottom: 1px solid rgba(123, 0, 255, 0.3);
+        padding-bottom: 10px;
+    }
+
+    .nav-tab-btn {
+        white-space: nowrap;
+        width: auto;
+    }
+
     .main-container {
         padding: 10px 12px;
     }
@@ -1434,33 +1470,5 @@ input:checked + .slider:before {
 
     .sidebar-overlay.active {
         display: block;
-    }
-
-    .glow-input-box {
-        padding: 4px 8px 4px 12px;
-        border-radius: 24px !important;
-    }
-
-    .glow-input-box input[type="text"] {
-        font-size: 14px;
-    }
-
-    .mic-btn, .glow-input-box button#sendBtn {
-        width: 34px;
-        height: 34px;
-        font-size: 14px;
-    }
-
-    .logo-title {
-        font-size: 36px;
-    }
-
-    .logo1-box img, .logo2-box img {
-        max-width: 220px;
-    }
-
-    .sidebar-bottom {
-        padding-top: 12px;
-        margin-top: auto;
     }
 }

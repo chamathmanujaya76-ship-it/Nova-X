@@ -172,7 +172,7 @@ function confirmLogout(isConfirmed) {
     }
 }
 
-// Settings Modal Navigation Tabs Switcher
+// Settings Vertical Tabs Switcher
 function switchSettingsTab(tabName, btnElem) {
     const tabs = document.querySelectorAll(".tab-content");
     tabs.forEach(tab => {
@@ -180,7 +180,7 @@ function switchSettingsTab(tabName, btnElem) {
         tab.classList.remove("active");
     });
 
-    const buttons = document.querySelectorAll(".nav-tab-btn");
+    const buttons = document.querySelectorAll(".settings-nav-tabs-vertical .nav-tab-btn");
     buttons.forEach(btn => btn.classList.remove("active"));
 
     const targetTab = document.getElementById(`tab-${tabName}`);
@@ -226,7 +226,7 @@ function openSettingsModal() {
         }
     }
     
-    switchSettingsTab('manage-account', document.querySelector('.nav-tab-btn'));
+    switchSettingsTab('manage-account', document.querySelector('.settings-nav-tabs-vertical .nav-tab-btn'));
     modal.style.display = "flex";
 }
 
@@ -306,7 +306,7 @@ async function saveSettings(e) {
     }
 }
 
-// Sidebar Drawer Management (Desktop + Mobile)
+// Sidebar Drawer Management
 function toggleSidebar() {
     const sidebar = document.getElementById("sidebar");
     const overlay = document.getElementById("sidebarOverlay");
@@ -411,7 +411,7 @@ function renderSidebarHistory() {
         container.innerHTML = `
             <div class="history-item active" onclick="startNewChat()">
                 <i class="fa-regular fa-message"></i>
-                <span>New Conversation</span>
+                <span class="hist-title-text">New Conversation</span>
             </div>
         `;
         return;
@@ -523,7 +523,7 @@ function copyCodeToClipboard(codeId, buttonElem) {
     });
 }
 
-// Message Sending Logic with Star Loader Fix
+// Message Sending Logic with Star Loader & Rate Limit Handler
 async function sendMessage(presetMessage = null) {
     const input = document.getElementById("userInput");
     const message = presetMessage || input.value.trim();
@@ -554,7 +554,7 @@ async function sendMessage(presetMessage = null) {
 
     if (autoSendTimer) clearTimeout(autoSendTimer);
 
-    // Star Loading Animation Insertion (Nexuz Star Animation)
+    // Star Loading Animation Insertion
     const loadingHtml = `<div class="nova-star-loader"><i class="fa-solid fa-sparkles"></i></div>`;
     const loadingId = appendMessage(loadingHtml, "bot-msg", [], true);
 
@@ -582,6 +582,7 @@ async function sendMessage(presetMessage = null) {
         const data = await res.json();
         const botMsgElem = document.getElementById(loadingId);
 
+        // Rate Limit Handling Included
         if (data.error_type === "rate_limit") {
             if (botMsgElem) {
                 botMsgElem.innerHTML = `
@@ -743,7 +744,7 @@ function startVoiceToText() {
     };
 }
 
-// Web Audio API Sound-to-Animation Visualizer Engine (Matching exact purple orb animation)
+// Fullscreen Sci-Fi Live Voice Visualizer
 async function initAudioVisualizer() {
     try {
         micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
@@ -791,7 +792,6 @@ function visualizeAudio() {
     animFrameId = requestAnimationFrame(visualizeAudio);
 }
 
-// Fullscreen Sci-Fi Live Voice Mode with Speech Synthesis & Selected Male/Female Voice
 function openLiveVoiceMode() {
     isLiveVoiceActive = true;
     document.getElementById("liveVoiceOverlay").classList.add("active");
