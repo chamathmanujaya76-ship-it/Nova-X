@@ -15,6 +15,7 @@ let animFrameId = null;
 
 // Three.js 3D Wave Particle Visualizer Variables
 let scene, camera, renderer, particleSystem;
+let glowRingLine, glowRingGeometry;
 let numParticles = 4000;
 let particlePositions, originalPositions, particleScales;
 let isAiSpeaking = false;
@@ -786,6 +787,7 @@ function initThreeGlowVisualizer() {
     renderer.setSize(420, 420);
     renderer.setPixelRatio(window.devicePixelRatio ? window.devicePixelRatio : 1);
 
+    // --- 1. OUTER PARTICLE SYSTEM ---
     const geometry = new THREE.BufferGeometry();
     particlePositions = new Float32Array(numParticles * 3);
     originalPositions = new Float32Array(numParticles * 3);
@@ -817,17 +819,40 @@ function initThreeGlowVisualizer() {
 
     geometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
 
-    const material = new THREE.PointsMaterial({
+    const pMaterial = new THREE.PointsMaterial({
         color: 0x9d00ff,
-        size: 5.5,
+        size: 5.0,
         map: createGlowTexture(),
         transparent: true,
         blending: THREE.AdditiveBlending,
         depthWrite: false
     });
 
-    particleSystem = new THREE.Points(geometry, material);
+    particleSystem = new THREE.Points(geometry, pMaterial);
     scene.add(particleSystem);
+
+    // --- 2. INNER SOLID NEON GLOWING WAVE RING (Photo Style) ---
+    const ringPointsCount = 200;
+    const ringPositions = new Float32Array(ringPointsCount * 3);
+    
+    glowRingGeometry = new THREE.BufferGeometry();
+    for (let i = 0; i < ringPointsCount; i++) {
+        const angle = (i / ringPointsCount) * Math.PI * 2;
+        ringPositions[i * 3] = Math.cos(angle) * 105;
+        ringPositions[i * 3 + 1] = Math.sin(angle) * 105;
+        ringPositions[i * 3 + 2] = 0;
+    }
+    glowRingGeometry.setAttribute('position', new THREE.BufferAttribute(ringPositions, 3));
+
+    const lineMaterial = new THREE.LineBasicMaterial({
+        color: 0xdf80ff,
+        linewidth: 3.5,
+        transparent: true,
+        opacity: 0.95
+    });
+
+    glowRingLine = new THREE.LineLoop(glowRingGeometry, lineMaterial);
+    scene.add(glowRingLine);
 }
 
 // Audio Stream Context Setup
@@ -862,23 +887,19 @@ function visualizeAudio() {
         averageFrequency = sum / (dataArray.length || 1);
     }
 
-    // Dynamic Wave Motion Processing
     aiVoiceWaveTime += 0.05;
-    const positions = particleSystem.geometry.attributes.position.array;
     const freqLen = dataArray.length || 1;
 
+    // Outer Particles Update
+    const positions = particleSystem.geometry.attributes.position.array;
     for (let i = 0; i < numParticles; i++) {
         const idx = i * 3;
         const ox = originalPositions[idx];
         const oy = originalPositions[idx + 1];
-        const oz = originalPositions[idx + 2];
-
         const angle = Math.atan2(oy, ox);
         const freqIndex = Math.floor(((angle + Math.PI) / (Math.PI * 2)) * freqLen) % freqLen;
         
         let audioFactor = (dataArray[freqIndex] || 0) / 255;
-
-        // Active Displacement when AI Speaks
         if (isAiSpeaking) {
             audioFactor = Math.abs(Math.sin(aiVoiceWaveTime * 3 + angle * 4)) * 0.85 + 0.15;
         }
@@ -888,11 +909,33 @@ function visualizeAudio() {
 
         positions[idx] = ox * radialMultiplier;
         positions[idx + 1] = oy * radialMultiplier;
-        positions[idx + 2] = oz + (audioFactor * 25 * Math.sin(angle * 8 + aiVoiceWaveTime * 2));
+        positions[idx + 2] = (Math.sin(angle * 8 + aiVoiceWaveTime * 2) * audioFactor * 20);
     }
-
     particleSystem.geometry.attributes.position.needsUpdate = true;
     particleSystem.rotation.z += 0.003;
+
+    // Inner Solid Neon Ring Wave Update
+    if (glowRingLine) {
+        const ringPos = glowRingGeometry.attributes.position.array;
+        const ringCount = ringPos.length / 3;
+        for (let i = 0; i < ringCount; i++) {
+            const angle = (i / ringCount) * Math.PI * 2;
+            const freqIndex = Math.floor((i / ringCount) * freqLen) % freqLen;
+            
+            let audioFactor = (dataArray[freqIndex] || 0) / 255;
+            if (isAiSpeaking) {
+                audioFactor = Math.abs(Math.sin(aiVoiceWaveTime * 4 + angle * 5)) * 0.9 + 0.1;
+            }
+
+            const waveDisplace = Math.sin(angle * 8 + aiVoiceWaveTime * 5) * (audioFactor * 28);
+            const radius = 105 + waveDisplace;
+
+            ringPos[i * 3] = Math.cos(angle) * radius;
+            ringPos[i * 3 + 1] = Math.sin(angle) * radius;
+        }
+        glowRingGeometry.attributes.position.needsUpdate = true;
+        glowRingLine.rotation.z -= 0.002;
+    }
 
     renderer.render(scene, camera);
     animFrameId = requestAnimationFrame(visualizeAudio);
