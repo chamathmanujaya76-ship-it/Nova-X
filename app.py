@@ -171,7 +171,7 @@ def call_gemini(prompt_content: str, custom_system_instruction: str) -> str:
     if not valid_keys:
         raise Exception("Gemini API Key කිසිවක් සකසා නොමැත.")
     
-    models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash","gemini-3.6-flash","gemini-1.5-pro"]
+    models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-3.6-flash", "gemini-1.5-pro"]
     
     for idx, key in enumerate(valid_keys, 1):
         try:
@@ -257,7 +257,7 @@ def call_openrouter(prompt_content: str, custom_system_instruction: str) -> str:
         "Content-Type": "application/json"
     }
     payload = json.dumps({
-        "model": "google/gemini-2.0-flash-exp:free",
+        "model": "openrouter/auto",
         "messages": [
             {"role": "system", "content": custom_system_instruction},
             {"role": "user", "content": prompt_content}
@@ -479,29 +479,34 @@ async def chat_endpoint(req: ChatRequest):
             "search_used": False
         }
 
-    # Save to Firestore if database is connected
-    if db and req.session_id and req.user_id != "guest":
+    # Save to Firestore under user's sub-collection
+    if db and req.session_id and req.user_id and req.user_id != "guest":
         try:
-            session_ref = db.collection("chat_sessions").document(req.session_id)
-            session_ref.collection("messages").add({
+            # User ගේ Sub-collection එකට path එක සැකසීම
+            session_ref = db.collection("users").document(req.user_id).collection("chat_sessions").document(req.session_id)
+            
+            # Session document එක update හෝ create කිරීම
+            session_ref.set({
                 "user_id": req.user_id,
+                "title": user_prompt[:30],
+                "last_updated": datetime.utcnow(),
+                "created_at": firestore.SERVER_TIMESTAMP
+            }, merge=True)
+
+            # Messages එකතු කිරීම
+            messages_ref = session_ref.collection("messages")
+            messages_ref.add({
                 "role": "user",
                 "content": user_prompt,
                 "timestamp": datetime.utcnow()
             })
-            session_ref.collection("messages").add({
-                "user_id": req.user_id,
+            messages_ref.add({
                 "role": "assistant",
                 "content": bot_reply,
                 "timestamp": datetime.utcnow()
             })
-            session_ref.set({
-                "user_id": req.user_id,
-                "last_updated": datetime.utcnow(),
-                "title": user_prompt[:25]
-            }, merge=True)
         except Exception as ex:
-            print(f"Firestore Save Error: {ex}")
+            print(f"Firestore User Session Save Error: {ex}")
 
     return {
         "success": True,
@@ -509,6 +514,27 @@ async def chat_endpoint(req: ChatRequest):
         "search_used": bool(search_context),
         "provider": active_provider
     }
+
+@app.get("/api/history/{user_id}")
+async def get_user_chat_history(user_id: str):
+    if not db or not user_id or user_id == "guest":
+        return {"success": False, "sessions": []}
+    try:
+        # අලුත්ම Sessions උඩට එන ලෙස Order කර ලබාගැනීම
+        sessions_ref = db.collection("users").document(user_id).collection("chat_sessions")
+        docs = sessions_ref.order_by("last_updated", direction=firestore.Query.DESCENDING).stream()
+        
+        session_list = []
+        for doc in docs:
+            data = doc.to_dict()
+            session_list.append({
+                "session_id": doc.id,
+                "title": data.get("title", "New Chat"),
+                "last_updated": data.get("last_updated")
+            })
+        return {"success": True, "sessions": session_list}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 if __name__ == '__main__':
     import uvicorn
