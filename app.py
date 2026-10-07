@@ -71,6 +71,80 @@ except Exception as e:
 def hash_password(password: str) -> str:
     return hashlib.sha256(str(password).encode('utf-8')).hexdigest()
 
+# ================= HELPER FUNCTIONS FOR FIREBASE AI CONTEXT =================
+
+def get_firebase_context_for_ai(is_creator: bool) -> str:
+    """Reads Firebase database and generates context summary for AI"""
+    if not db:
+        return "[Firebase Database Status: Not Connected]"
+
+    try:
+        users_stream = db.collection("users").stream()
+        all_users = []
+        
+        for user_doc in users_stream:
+            u_data = user_doc.to_dict()
+            u_id = user_doc.id
+            full_name = u_data.get("full_name") or u_data.get("name") or f"{u_data.get('first_name', '')} {u_data.get('last_name', '')}".strip() or "Unnamed User"
+            
+            user_info = {
+                "id": u_id,
+                "name": full_name,
+                "email": u_data.get("email", ""),
+                "age": u_data.get("age", "Unknown"),
+                "country": u_data.get("country", "Unknown"),
+                "voice_preference": u_data.get("voice_preference", "male")
+            }
+
+            # Fetch user chat sessions if Creator
+            if is_creator:
+                chats_summary = []
+                try:
+                    sessions_stream = db.collection("users").document(u_id).collection("chat_sessions").limit(5).stream()
+                    for sess in sessions_stream:
+                        sess_data = sess.to_dict()
+                        s_title = sess_data.get("title", "Untitled Session")
+                        
+                        # Get last few messages from this session
+                        msgs_stream = sess.collection("messages").order_by("timestamp", direction=firestore.Query.DESCENDING).limit(4).stream()
+                        msgs = []
+                        for m in msgs_stream:
+                            md = m.to_dict()
+                            msgs.append(f"{md.get('role')}: {md.get('content')}")
+                        
+                        msgs.reverse()
+                        chats_summary.append(f"Session Title: '{s_title}' -> Messages: [{ ' | '.join(msgs) }]")
+                except Exception as ce:
+                    print(f"Error reading session for {u_id}: {ce}")
+                
+                user_info["chats"] = chats_summary
+
+            all_users.append(user_info)
+
+        total_count = len(all_users)
+
+        if not is_creator:
+            return f"[System Database Stats]:\n- Total Registered Nexuz Users: {total_count}\n(Detailed user profiles and chat histories are restricted to Creator account only)."
+
+        # Context details for Creator Account
+        context_lines = [f"[System Database Stats for Creator Access]:\n- Total Users: {total_count}\n"]
+        for u in all_users:
+            context_lines.append(f"📌 User: {u['name']} (ID: {u['id']})")
+            context_lines.append(f"   Email: {u['email']} | Age: {u['age']} | Country: {u['country']}")
+            if u.get("chats"):
+                context_lines.append("   Recent Conversations:")
+                for c in u["chats"]:
+                    context_lines.append(f"     - {c}")
+            else:
+                context_lines.append("   Recent Conversations: None yet.")
+            context_lines.append("")
+
+        return "\n".join(context_lines)
+
+    except Exception as e:
+        print(f"Error generating Firebase AI Context: {e}")
+        return "[Firebase Context Error: Failed to fetch live stats]"
+
 # ================= SEARCH PROVIDERS WITH FALLBACK =================
 
 def search_tavily(query: str) -> str:
@@ -315,6 +389,10 @@ system_instruction = """
 1. Live Web Search: සජීවීව ලැබෙන තොරතුරු භාවිතයෙන් අසන ලද ප්‍රශ්නයට නිවැරදි, යාවත්කාලීන පිළිතුර සපයන්න.
 2. Code & Formatting: Code සපයන විට පිරිසිදුව Markdown Code blocks (```language ... ```) තුළ ලබාදෙන්න.
 3. Chat Context: කලින් කතාබහ කළ මාතෘකාව මතක තබාගෙන අනුගාමික ප්‍රශ්න වලට ස්වාභාවිකව පිළිතුරු දෙන්න.
+4. Database Privacy:
+   - ඔබ වෙත සජීවීව පහතින් සපයා ඇති [Firebase Context] තොරතුරු කියවා ප්‍රශ්න වලට පිළිතුරු දෙන්න.
+   - සාමාන්‍ය පරිශීලකයෙකු (Normal User) ග්‍රාහකයන් ගණන හෝ සිස්ටම් විස්තර ඇසුවොත් සමස්ත ග්‍රාහක සංඛ්‍යාව පමණක් පවසන්න. පෞද්ගලික විස්තර/අන් අයගේ චැට් විස්තර කිසිවිටෙක සාමාන්‍ය අයට පවසන්න එපා.
+   - වත්මන් පරිශීලකයා Creator (Chamath Manujaya) නම් පමණක්, ඔහු අසන ඕනෑම පරිශීලකයෙකුගේ සම්පූර්ණ විස්තර, පරිශීලකයන්ගේ නම් ලැයිස්තු සහ ඔවුන් අසා ඇති ප්‍රශ්න පිළිබඳ තොරතුරු පැහැදිලිව ලබා දෙන්න.
 """
 
 class ChatMessage(BaseModel):
@@ -374,6 +452,7 @@ async def register(req: AuthRequest):
         "first_name": req.first_name,
         "last_name": req.last_name,
         "full_name": full_name,
+        "name": full_name,
         "age": req.age,
         "country": req.country,
         "purpose": req.purpose,
@@ -462,9 +541,14 @@ async def chat_endpoint(req: ChatRequest):
 
     user_first_name = req.first_name or "User"
     user_full_name = req.full_name or user_first_name
+    is_creator = (req.email and req.email.strip().lower() == "chamathmanujaya76@gmail.com")
 
-    if req.email and req.email.strip().lower() == "chamathmanujaya76@gmail.com":
-        custom_system_instruction = system_instruction + f"\n\nවත්මන් පරිශීලකයා ඔබේ සැබෑ Creator (නිර්මාතෘ) වන E.M.Chamath Manujaya වේ. ඔහුට ඉතාමත් ගෞරවයෙන් 'Sir' හෝ 'Creator' ලෙස අමතා විශේෂ සැලකිල්ලෙන් පිළිතුරු සපයන්න."
+    # Fetch live Firebase Database context
+    firebase_context = get_firebase_context_for_ai(is_creator=is_creator)
+    prompt_content = f"{firebase_context}\n\n" + prompt_content
+
+    if is_creator:
+        custom_system_instruction = system_instruction + f"\n\nවත්මන් පරිශීලකයා ඔබේ සැබෑ Creator (නිර්මාතෘ) වන E.M.Chamath Manujaya වේ. ඔහුට ඉතාමත් ගෞරවයෙන් 'Sir' හෝ 'Creator' ලෙස අමතා විශේෂ සැලකිල්ලෙන් පිළිතුරු සපයන්න. ඔහු අසන ඕනෑම පරිශීලකයෙකුගේ විස්තර සහ චැට් ඉතිහාසය Firebase දත්ත අනුව ලබා දෙන්න."
     else:
         custom_system_instruction = system_instruction + f"\n\nපරිශීලකයාගේ සම්පූර්ණ නම: {user_full_name}. පළමු නම: {user_first_name}. පරිශීලකයාට අමතන විට ඔහුව/ඇයව මිත්‍රශීලීව {user_first_name} ලෙස පළමු නමින් අමතන්න."
 
@@ -533,6 +617,81 @@ async def get_user_chat_history(user_id: str):
                 "last_updated": data.get("last_updated")
             })
         return {"success": True, "sessions": session_list}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+# ================= USER ANALYTICS ENDPOINT =================
+
+@app.get("/api/analytics/users")
+async def get_user_analytics():
+    """Endpoint to aggregate users count, age groups, countries, and voice/gender preferences"""
+    if not db:
+        return {"success": False, "message": "Database (Firebase) සම්බන්ධ කර නැත."}
+    
+    try:
+        users_ref = db.collection("users").stream()
+        
+        total_users = 0
+        countries_count = {}
+        age_groups_count = {
+            "Under 18": 0,
+            "18-24": 0,
+            "25-34": 0,
+            "35-44": 0,
+            "45+": 0,
+            "Unspecified": 0
+        }
+        voice_pref_count = {
+            "male": 0,
+            "female": 0,
+            "Unspecified": 0
+        }
+
+        for user_doc in users_ref:
+            total_users += 1
+            data = user_doc.to_dict()
+
+            # Country aggregation
+            country = data.get("country", "Unknown") or "Unknown"
+            country_clean = country.strip().capitalize()
+            countries_count[country_clean] = countries_count.get(country_clean, 0) + 1
+
+            # Age group aggregation
+            raw_age = data.get("age")
+            if raw_age:
+                try:
+                    age_num = int(raw_age)
+                    if age_num < 18:
+                        age_groups_count["Under 18"] += 1
+                    elif 18 <= age_num <= 24:
+                        age_groups_count["18-24"] += 1
+                    elif 25 <= age_num <= 34:
+                        age_groups_count["25-34"] += 1
+                    elif 35 <= age_num <= 44:
+                        age_groups_count["35-44"] += 1
+                    else:
+                        age_groups_count["45+"] += 1
+                except ValueError:
+                    age_groups_count["Unspecified"] += 1
+            else:
+                age_groups_count["Unspecified"] += 1
+
+            # Voice / Gender preference aggregation
+            voice = data.get("voice_preference", "Unspecified") or "Unspecified"
+            voice_clean = voice.strip().lower()
+            if voice_clean in voice_pref_count:
+                voice_pref_count[voice_clean] += 1
+            else:
+                voice_pref_count["Unspecified"] += 1
+
+        return {
+            "success": True,
+            "total_users": total_users,
+            "voice_preferences": voice_pref_count,
+            "age_groups": age_groups_count,
+            "countries": countries_count
+        }
+
     except Exception as e:
         return {"success": False, "error": str(e)}
 
