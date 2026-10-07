@@ -27,6 +27,11 @@ const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecogni
 document.addEventListener("DOMContentLoaded", () => {
     checkUserAuth();
     loadSavedHistory();
+    if ('speechSynthesis' in window) {
+        window.speechSynthesis.onvoiceschanged = () => {
+            window.speechSynthesis.getVoices();
+        };
+    }
 });
 
 // User Auth Check
@@ -37,7 +42,6 @@ function checkUserAuth() {
     if (savedUser) {
         currentUser = JSON.parse(savedUser);
         if (authModal) authModal.style.display = "none";
-        
         updateSidebarUserDisplay();
     } else {
         if (authModal) authModal.style.display = "flex";
@@ -50,9 +54,9 @@ function updateSidebarUserDisplay() {
 
     const userDisplayElem = document.getElementById("userNameDisplay");
     const creatorBadgeElem = document.getElementById("creatorBadge");
+    const settingsCreatorBadgeElem = document.getElementById("settingsCreatorBadge");
     const userAvatarImg = document.getElementById("userAvatarImg");
     const defaultUserIcon = document.getElementById("defaultUserIcon");
-    
     const settingsGreeting = document.getElementById("settingsGreeting");
 
     const fullName = currentUser.full_name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.first_name || "Account User";
@@ -65,10 +69,14 @@ function updateSidebarUserDisplay() {
         settingsGreeting.innerText = `Hi, ${currentUser.first_name || 'User'}!`;
     }
 
-    if (currentUser.email && currentUser.email.toLowerCase() === "chamathmanujaya76@gmail.com") {
+    const isCreator = currentUser.email && currentUser.email.toLowerCase() === "chamathmanujaya76@gmail.com";
+
+    if (isCreator) {
         if (creatorBadgeElem) creatorBadgeElem.style.display = "inline-flex";
+        if (settingsCreatorBadgeElem) settingsCreatorBadgeElem.style.display = "inline-flex";
     } else {
         if (creatorBadgeElem) creatorBadgeElem.style.display = "none";
+        if (settingsCreatorBadgeElem) settingsCreatorBadgeElem.style.display = "none";
     }
 
     if (currentUser.profile_pic && userAvatarImg) {
@@ -169,7 +177,7 @@ function showLogoutConfirmation() {
     if (modal) modal.style.display = "flex";
 }
 
-// Confirm Logout Action (Yes / No)
+// Confirm Logout Action
 function confirmLogout(isConfirmed) {
     const modal = document.getElementById("logoutConfirmModal");
     if (modal) modal.style.display = "none";
@@ -266,13 +274,10 @@ async function saveSettings(e) {
     e.preventDefault();
     if (!currentUser) return;
 
-    const newFirstName = document.getElementById("setFirstName").value.trim();
-    const newLastName = document.getElementById("setLastName").value.trim();
     const newAge = document.getElementById("setAge").value.trim();
-    const newCountry = document.getElementById("setCountry").value.trim();
     const newPurpose = document.getElementById("setPurpose").value.trim();
     const newPassword = document.getElementById("setPassword").value.trim();
-    const voicePref = document.getElementById("voiceSelect").value;
+    const voicePref = document.getElementById("voiceSelect") ? document.getElementById("voiceSelect").value : "male";
     const preview = document.getElementById("settingsAvatarPreview");
     const newPic = preview.dataset.base64 || currentUser.profile_pic || "";
 
@@ -282,10 +287,10 @@ async function saveSettings(e) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 user_id: currentUser.id,
-                first_name: newFirstName,
-                last_name: newLastName,
+                first_name: currentUser.first_name,
+                last_name: currentUser.last_name,
                 age: newAge,
-                country: newCountry,
+                country: currentUser.country,
                 purpose: newPurpose,
                 password: newPassword,
                 voice_preference: voicePref,
@@ -295,11 +300,7 @@ async function saveSettings(e) {
 
         const data = await res.json();
         if (data.success) {
-            currentUser.first_name = newFirstName;
-            currentUser.last_name = newLastName;
-            currentUser.full_name = `${newFirstName} ${newLastName}`.trim();
             currentUser.age = newAge;
-            currentUser.country = newCountry;
             currentUser.purpose = newPurpose;
             currentUser.voice_preference = voicePref;
             currentUser.profile_pic = newPic;
@@ -307,7 +308,7 @@ async function saveSettings(e) {
             localStorage.setItem("nexuz_user_data", JSON.stringify(currentUser));
             updateSidebarUserDisplay();
             closeSettingsModal();
-            alert("Profile Settings සාර්ථකව යාවත්කාලීන විය!");
+            alert("Profile Settings සාර්ථකව සුරකින ලදී!");
         }
     } catch (err) {
         alert("Settings සුරැකීමට නොහැකි විය!");
@@ -531,7 +532,7 @@ function copyCodeToClipboard(codeId, buttonElem) {
     });
 }
 
-// Message Sending Logic with Star Loader & Rate Limit Handler
+// Message Sending Logic
 async function sendMessage(presetMessage = null) {
     const input = document.getElementById("userInput");
     const message = presetMessage || input.value.trim();
@@ -562,7 +563,6 @@ async function sendMessage(presetMessage = null) {
 
     if (autoSendTimer) clearTimeout(autoSendTimer);
 
-    // Star Loading Animation Insertion
     const loadingHtml = `<div class="nova-star-loader"><i class="fa-solid fa-sparkles"></i></div>`;
     const loadingId = appendMessage(loadingHtml, "bot-msg", [], true);
 
@@ -590,7 +590,6 @@ async function sendMessage(presetMessage = null) {
         const data = await res.json();
         const botMsgElem = document.getElementById(loadingId);
 
-        // Rate Limit Handling
         if (data.error_type === "rate_limit") {
             if (botMsgElem) {
                 botMsgElem.innerHTML = `
@@ -778,16 +777,20 @@ function initThreeGlowVisualizer() {
     const canvasElem = document.getElementById("threeGlowCanvas");
     if (!canvasElem) return;
 
+    if (renderer) {
+        renderer.dispose();
+    }
+
     scene = new THREE.Scene();
     
     camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
     camera.position.z = 320;
 
     renderer = new THREE.WebGLRenderer({ canvas: canvasElem, alpha: true, antialias: true });
-    renderer.setSize(420, 420);
+    renderer.setSize(380, 380);
     renderer.setPixelRatio(window.devicePixelRatio ? window.devicePixelRatio : 1);
 
-    // --- 1. OUTER PARTICLE SYSTEM ---
+    // 1. OUTER PARTICLE SYSTEM
     const geometry = new THREE.BufferGeometry();
     particlePositions = new Float32Array(numParticles * 3);
     originalPositions = new Float32Array(numParticles * 3);
@@ -831,7 +834,7 @@ function initThreeGlowVisualizer() {
     particleSystem = new THREE.Points(geometry, pMaterial);
     scene.add(particleSystem);
 
-    // --- 2. INNER SOLID NEON GLOWING WAVE RING (Photo Style) ---
+    // 2. INNER SOLID NEON GLOWING WAVE RING
     const ringPointsCount = 200;
     const ringPositions = new Float32Array(ringPointsCount * 3);
     
@@ -866,10 +869,12 @@ async function initAudioVisualizer() {
         const source = audioCtx.createMediaStreamSource(micStream);
         source.connect(analyser);
 
-        if (!scene) initThreeGlowVisualizer();
+        initThreeGlowVisualizer();
         visualizeAudio();
     } catch (e) {
         console.log("Audio visualizer init error:", e);
+        initThreeGlowVisualizer();
+        visualizeAudio();
     }
 }
 
@@ -890,31 +895,31 @@ function visualizeAudio() {
     aiVoiceWaveTime += 0.05;
     const freqLen = dataArray.length || 1;
 
-    // Outer Particles Update
-    const positions = particleSystem.geometry.attributes.position.array;
-    for (let i = 0; i < numParticles; i++) {
-        const idx = i * 3;
-        const ox = originalPositions[idx];
-        const oy = originalPositions[idx + 1];
-        const angle = Math.atan2(oy, ox);
-        const freqIndex = Math.floor(((angle + Math.PI) / (Math.PI * 2)) * freqLen) % freqLen;
-        
-        let audioFactor = (dataArray[freqIndex] || 0) / 255;
-        if (isAiSpeaking) {
-            audioFactor = Math.abs(Math.sin(aiVoiceWaveTime * 3 + angle * 4)) * 0.85 + 0.15;
+    if (particleSystem) {
+        const positions = particleSystem.geometry.attributes.position.array;
+        for (let i = 0; i < numParticles; i++) {
+            const idx = i * 3;
+            const ox = originalPositions[idx];
+            const oy = originalPositions[idx + 1];
+            const angle = Math.atan2(oy, ox);
+            const freqIndex = Math.floor(((angle + Math.PI) / (Math.PI * 2)) * freqLen) % freqLen;
+            
+            let audioFactor = (dataArray[freqIndex] || 0) / 255;
+            if (isAiSpeaking) {
+                audioFactor = Math.abs(Math.sin(aiVoiceWaveTime * 3 + angle * 4)) * 0.85 + 0.15;
+            }
+
+            const wavePulse = Math.sin(angle * 6 + aiVoiceWaveTime * 4) * (audioFactor * 35);
+            const radialMultiplier = 1 + (audioFactor * 0.35) + (wavePulse / 180);
+
+            positions[idx] = ox * radialMultiplier;
+            positions[idx + 1] = oy * radialMultiplier;
+            positions[idx + 2] = (Math.sin(angle * 8 + aiVoiceWaveTime * 2) * audioFactor * 20);
         }
-
-        const wavePulse = Math.sin(angle * 6 + aiVoiceWaveTime * 4) * (audioFactor * 35);
-        const radialMultiplier = 1 + (audioFactor * 0.35) + (wavePulse / 180);
-
-        positions[idx] = ox * radialMultiplier;
-        positions[idx + 1] = oy * radialMultiplier;
-        positions[idx + 2] = (Math.sin(angle * 8 + aiVoiceWaveTime * 2) * audioFactor * 20);
+        particleSystem.geometry.attributes.position.needsUpdate = true;
+        particleSystem.rotation.z += 0.003;
     }
-    particleSystem.geometry.attributes.position.needsUpdate = true;
-    particleSystem.rotation.z += 0.003;
 
-    // Inner Solid Neon Ring Wave Update
     if (glowRingLine) {
         const ringPos = glowRingGeometry.attributes.position.array;
         const ringCount = ringPos.length / 3;
@@ -937,7 +942,10 @@ function visualizeAudio() {
         glowRingLine.rotation.z -= 0.002;
     }
 
-    renderer.render(scene, camera);
+    if (renderer && scene && camera) {
+        renderer.render(scene, camera);
+    }
+    
     animFrameId = requestAnimationFrame(visualizeAudio);
 }
 
@@ -951,10 +959,10 @@ function openLiveVoiceMode() {
     const statusText = document.getElementById("liveVoiceStatus");
     if (statusText) statusText.innerText = greetingText;
 
-    speakText(greetingText);
     initAudioVisualizer();
-
-    setTimeout(startLiveListening, 2500);
+    speakText(greetingText, () => {
+        startLiveListening();
+    });
 }
 
 function closeLiveVoiceMode() {
@@ -968,14 +976,22 @@ function closeLiveVoiceMode() {
     document.getElementById("liveVoiceOverlay").classList.remove("active");
 }
 
-function speakText(text) {
+function speakText(text, onCompleteCallback = null) {
     if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
+        
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.rate = 1.0;
 
         utterance.onstart = () => { isAiSpeaking = true; };
-        utterance.onend = () => { isAiSpeaking = false; };
+        utterance.onend = () => { 
+            isAiSpeaking = false; 
+            if (onCompleteCallback) onCompleteCallback();
+        };
+        utterance.onerror = () => {
+            isAiSpeaking = false;
+            if (onCompleteCallback) onCompleteCallback();
+        };
 
         const selectedGender = (currentUser && currentUser.voice_preference) ? currentUser.voice_preference : "male";
         const voices = window.speechSynthesis.getVoices();
@@ -983,14 +999,16 @@ function speakText(text) {
         if (voices.length > 0) {
             let matchedVoice = null;
             if (selectedGender === "female") {
-                matchedVoice = voices.find(v => v.name.includes("Female") || v.name.includes("Zira") || v.name.includes("Google UK English Female") || v.name.includes("Samantha"));
+                matchedVoice = voices.find(v => v.name.includes("Female") || v.name.includes("Zira") || v.name.includes("Google UK English Female") || v.name.includes("Samantha") || v.name.includes("Victoria") || v.name.includes("Karen"));
             } else {
-                matchedVoice = voices.find(v => v.name.includes("Male") || v.name.includes("David") || v.name.includes("Google UK English Male") || v.name.includes("Alex"));
+                matchedVoice = voices.find(v => v.name.includes("Male") || v.name.includes("David") || v.name.includes("Google UK English Male") || v.name.includes("Alex") || v.name.includes("George"));
             }
             if (matchedVoice) utterance.voice = matchedVoice;
         }
 
         window.speechSynthesis.speak(utterance);
+    } else {
+        if (onCompleteCallback) onCompleteCallback();
     }
 }
 
@@ -1001,6 +1019,10 @@ function startLiveListening() {
     const transcriptText = document.getElementById("liveTranscript");
 
     if (statusText) statusText.innerText = "සවන්දෙමින් පවතී... කතා කරන්න...";
+
+    if (recognition) {
+        try { recognition.stop(); } catch(e){}
+    }
 
     recognition = new SpeechRecognition();
     recognition.lang = "si-LK";
@@ -1021,12 +1043,19 @@ function startLiveListening() {
         }
     };
 
-    recognition.onerror = () => {
-        if (isLiveVoiceActive) setTimeout(startLiveListening, 1000);
+    recognition.onerror = (e) => {
+        if (isLiveVoiceActive && !isAiSpeaking) {
+            setTimeout(startLiveListening, 1200);
+        }
     };
 }
 
 async function processLiveVoiceInput(userText) {
+    if (!userText || !userText.trim()) {
+        if (isLiveVoiceActive) startLiveListening();
+        return;
+    }
+
     const statusText = document.getElementById("liveVoiceStatus");
     if (statusText) statusText.innerText = "Nexuz සිතමින් පවතී...";
 
@@ -1055,9 +1084,10 @@ async function processLiveVoiceInput(userText) {
         const reply = data.reply || "සමාවන්න, මට එය තේරුණේ නැත.";
 
         if (statusText) statusText.innerText = reply;
-        speakText(reply);
+        speakText(reply, () => {
+            if (isLiveVoiceActive) startLiveListening();
+        });
 
-        setTimeout(startLiveListening, 4500);
     } catch (err) {
         if (statusText) statusText.innerText = "සන්නිවේදන දෝෂයක් සිදු විය.";
         setTimeout(startLiveListening, 2000);

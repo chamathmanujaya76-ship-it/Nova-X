@@ -5,7 +5,6 @@
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 
-/* Custom Subtle Scrollbar Moved Right-most Edge */
 html, body {
     scrollbar-gutter: stable;
 }
@@ -43,7 +42,6 @@ body {
     position: relative;
 }
 
-/* Sidebar Backdrop Overlay for Mobile */
 .sidebar-overlay {
     display: none;
     position: fixed;
@@ -56,7 +54,6 @@ body {
     z-index: 99;
 }
 
-/* Gemini Style Pitch-Black Ultra-Narrow Sidebar */
 .sidebar {
     width: 260px;
     height: 100vh;
@@ -216,22 +213,27 @@ body {
     border-left: 3px solid #7B00FF;
 }
 
-/* Sidebar Bottom Vertical Profile & Settings */
+/* SIDEBAR BOTTOM VERTICAL ALIGNMENT FIX (Image 2 - Bug 1) */
 .sidebar-bottom {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 12px;
+    justify-content: center;
+    gap: 14px;
     padding-top: 15px;
     border-top: 1px solid rgba(123, 0, 255, 0.25);
+    width: 100%;
 }
 
 .user-profile {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 10px;
+    justify-content: center;
+    gap: 6px;
     width: 100%;
     overflow: hidden;
+    text-align: center;
 }
 
 .user-avatar-wrapper {
@@ -247,8 +249,8 @@ body {
 }
 
 .user-avatar-img {
-    width: 32px;
-    height: 32px;
+    width: 34px;
+    height: 34px;
     border-radius: 50%;
     object-fit: cover;
     border: 1.5px solid #7B00FF;
@@ -256,7 +258,7 @@ body {
 }
 
 .profile-icon {
-    font-size: 24px;
+    font-size: 26px;
     color: #7B00FF;
     filter: drop-shadow(0 0 8px #7B00FF);
 }
@@ -264,7 +266,11 @@ body {
 .user-info-box {
     display: flex;
     flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
     overflow: hidden;
+    width: 100%;
 }
 
 .user-name {
@@ -274,6 +280,7 @@ body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    max-width: 100%;
 }
 
 .creator-badge {
@@ -281,12 +288,11 @@ body {
     color: #000000;
     font-size: 10px;
     font-weight: 800;
-    padding: 1px 6px;
-    border-radius: 8px;
+    padding: 2px 8px;
+    border-radius: 10px;
     display: inline-flex;
     align-items: center;
-    gap: 3px;
-    width: fit-content;
+    gap: 4px;
     box-shadow: 0 0 10px rgba(255, 215, 0, 0.6);
 }
 
@@ -294,11 +300,14 @@ body {
     background: transparent;
     border: none;
     color: #888888;
-    font-size: 18px;
+    font-size: 20px;
     cursor: pointer;
     padding: 6px;
     border-radius: 50%;
     transition: color 0.2s, transform 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .settings-btn:hover {
@@ -320,7 +329,6 @@ body {
     overflow: hidden;
 }
 
-/* App Header & Live Voice Button */
 .app-header {
     width: 100%;
     display: flex;
@@ -383,7 +391,6 @@ body {
     50% { opacity: 0.3; }
 }
 
-/* Hero Center Banner */
 .hero-banner {
     display: flex;
     flex-direction: column;
@@ -435,7 +442,6 @@ body {
     margin-top: 8px;
 }
 
-/* Nexuz Star Loading Animation */
 @keyframes starPulseGlow {
     0% { transform: rotate(0deg) scale(1); filter: drop-shadow(0 0 10px #7B00FF); }
     50% { transform: rotate(180deg) scale(1.4); filter: drop-shadow(0 0 35px #7B00FF) drop-shadow(0 0 50px #0044FF); }
@@ -452,7 +458,6 @@ body {
     animation: starPulseGlow 1.6s infinite ease-in-out;
 }
 
-/* Chat Area */
 .chat-area {
     width: 100%;
     max-width: 760px;
@@ -502,7 +507,6 @@ body {
     box-shadow: 0 0 15px rgba(123, 0, 255, 0.4);
 }
 
-/* Markdown Styling */
 .bot-msg h1, .bot-msg h2, .bot-msg h3 {
     margin: 12px 0 6px 0;
     color: #a855f7;
@@ -584,7 +588,6 @@ body {
     line-height: 1.5;
 }
 
-/* API Rate Limit Warning Box UI */
 .rate-limit-card {
     display: flex;
     align-items: flex-start;
@@ -638,7 +641,6 @@ body {
     display: block;
 }
 
-/* Input Area */
 .input-wrapper {
     width: 100%;
     max-width: 760px;
@@ -876,11 +878,10 @@ body {
     max-height: 90vh;
 }
 
-/* TRANSPARENT MODERN GEMINI SETTINGS WITH VERTICAL TABS & GLOW BORDER */
 .modern-gemini-settings {
     max-width: 680px !important;
     padding: 25px !important;
-    background: rgba(10, 4, 22, 0.75) !important;
+    background: rgba(10, 4, 22, 0.85) !important;
     backdrop-filter: blur(25px) !important;
     border: 2px solid #7B00FF !important;
     box-shadow: 0 0 35px rgba(123, 0, 255, 0.6), 0 0 65px rgba(0, 68, 255, 0.4) !important;
@@ -924,13 +925,19 @@ body {
     color: #7B00FF;
 }
 
+.settings-greeting-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
 .settings-user-greeting {
-    font-size: 18px;
+    font-size: 20px;
     font-weight: 700;
     color: #ffffff;
 }
 
-/* SETTINGS BODY TWO COLUMN LAYOUT */
 .settings-body-layout {
     display: flex;
     gap: 20px;
@@ -995,7 +1002,6 @@ body {
     box-shadow: 0 0 15px rgba(239, 68, 68, 0.7);
 }
 
-/* Settings Internal Content Area */
 .settings-tab-content-wrapper {
     flex: 1;
     overflow-y: auto;
@@ -1023,7 +1029,6 @@ body {
     color: #7B00FF;
 }
 
-/* Toggle Switch UI */
 .setting-toggle-row {
     display: flex;
     align-items: center;
@@ -1082,7 +1087,6 @@ input:checked + .slider:before {
     border-radius: 50%;
 }
 
-/* Logout Confirmation Modal UI */
 .confirm-card {
     max-width: 380px !important;
     text-align: center;
@@ -1127,10 +1131,12 @@ input:checked + .slider:before {
     transform: scale(1.05);
 }
 
+/* READONLY INPUT LOCK STYLING (Image 3 - Bug 2) */
 .readonly-input {
-    background: #0d0618 !important;
-    opacity: 0.7;
-    cursor: not-allowed;
+    background: #0b0516 !important;
+    opacity: 0.6;
+    cursor: not-allowed !important;
+    border-color: rgba(123, 0, 255, 0.25) !important;
 }
 
 .auth-header {
@@ -1248,7 +1254,7 @@ input:checked + .slider:before {
     text-decoration: underline;
 }
 
-/* Fullscreen Sci-Fi Live Overlay */
+/* FULLSCREEN LIVE OVERLAY CANVAS STYLING FIX (Image 1 - Bug 1) */
 .live-voice-overlay {
     display: none;
     position: fixed;
@@ -1312,9 +1318,9 @@ input:checked + .slider:before {
 }
 
 #threeGlowCanvas {
-    width: 100% !important;
-    height: 100% !important;
-    object-fit: contain;
+    width: 380px !important;
+    height: 380px !important;
+    display: block !important;
     filter: drop-shadow(0 0 18px rgba(180, 0, 255, 0.8)) drop-shadow(0 0 35px rgba(123, 0, 255, 0.5));
 }
 
@@ -1414,5 +1420,10 @@ input:checked + .slider:before {
     .orb-visualizer-container {
         width: 300px;
         height: 300px;
+    }
+
+    #threeGlowCanvas {
+        width: 300px !important;
+        height: 300px !important;
     }
 }
