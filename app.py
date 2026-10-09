@@ -7,7 +7,7 @@ import urllib.request
 import urllib.parse
 from datetime import datetime
 from typing import Optional, List
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
@@ -96,7 +96,6 @@ def get_firebase_context_for_ai(is_creator: bool) -> str:
                 "voice_preference": u_data.get("voice_preference", "male")
             }
 
-            # Fetch user chat sessions if Creator
             if is_creator:
                 chats_summary = []
                 try:
@@ -105,7 +104,6 @@ def get_firebase_context_for_ai(is_creator: bool) -> str:
                         sess_data = sess.to_dict()
                         s_title = sess_data.get("title", "Untitled Session")
                         
-                        # Get last few messages from this session
                         msgs_stream = sess.collection("messages").order_by("timestamp", direction=firestore.Query.DESCENDING).limit(4).stream()
                         msgs = []
                         for m in msgs_stream:
@@ -126,7 +124,6 @@ def get_firebase_context_for_ai(is_creator: bool) -> str:
         if not is_creator:
             return f"[System Database Stats]:\n- Total Registered Nexuz Users: {total_count}\n(Detailed user profiles and chat histories are restricted to Creator account only)."
 
-        # Context details for Creator Account
         context_lines = [f"[System Database Stats for Creator Access]:\n- Total Users: {total_count}\n"]
         for u in all_users:
             context_lines.append(f"📌 User: {u['name']} (ID: {u['id']})")
@@ -148,7 +145,6 @@ def get_firebase_context_for_ai(is_creator: bool) -> str:
 # ================= SEARCH PROVIDERS WITH IMAGE SEARCH SUPPORT =================
 
 def search_tavily(query: str) -> str:
-    """Primary Search Provider - Tavily AI Search"""
     api_key = os.environ.get("TAVILY_API_KEY")
     if not api_key:
         raise Exception("Tavily API key සකසා නොමැත.")
@@ -182,7 +178,6 @@ def search_tavily(query: str) -> str:
         return "\n\n".join(results)
 
 def search_serpapi(query: str) -> str:
-    """Fallback Search Provider 1 - SerpAPI"""
     api_key = os.environ.get("SERPAPI_API_KEY")
     if not api_key:
         raise Exception("SerpAPI Key සකසා නොමැත.")
@@ -206,7 +201,6 @@ def search_serpapi(query: str) -> str:
         return "\n\n".join(results)
 
 def search_ddg(query: str) -> str:
-    """Fallback Search Provider 2 - DuckDuckGo (Text & Image Search)"""
     results = []
     clean_query = query.strip()
     with DDGS() as ddgs:
@@ -233,7 +227,6 @@ def search_ddg(query: str) -> str:
     return "\n\n".join(results)
 
 def web_search(query: str) -> str:
-    """Ordered Fallback Search Orchestrator"""
     if not query or len(query.strip()) < 2:
         return ""
     
@@ -257,7 +250,6 @@ def web_search(query: str) -> str:
 # ================= AI MODEL PROVIDERS WITH FALLBACK =================
 
 def call_gemini(prompt_content: str, custom_system_instruction: str) -> str:
-    """Primary AI Provider - Gemini API (Multi-Key & Multi-Model Support)"""
     gemini_keys = [
         os.environ.get("GEMINI_API_KEY"),
         os.environ.get("GEMINI_API_KEY_2"),
@@ -295,7 +287,6 @@ def call_gemini(prompt_content: str, custom_system_instruction: str) -> str:
     raise Exception("සියලුම Gemini API Keys සහ Models අසාර්ථක විය.")
 
 def call_deepseek(prompt_content: str, custom_system_instruction: str) -> str:
-    """Fallback AI Provider 1 - DeepSeek API"""
     api_key = os.environ.get("DEEPSEEK_API_KEY")
     if not api_key or not api_key.strip():
         raise Exception("DeepSeek API Key නොමැත.")
@@ -320,7 +311,6 @@ def call_deepseek(prompt_content: str, custom_system_instruction: str) -> str:
         return res_data["choices"][0]["message"]["content"]
 
 def call_groq(prompt_content: str, custom_system_instruction: str) -> str:
-    """Fallback AI Provider 2 - Groq API"""
     api_key = os.environ.get("GROQ_API_KEY")
     if not api_key or not api_key.strip():
         raise Exception("Groq API Key නොමැත.")
@@ -345,7 +335,6 @@ def call_groq(prompt_content: str, custom_system_instruction: str) -> str:
         return res_data["choices"][0]["message"]["content"]
 
 def call_openrouter(prompt_content: str, custom_system_instruction: str) -> str:
-    """Fallback AI Provider 3 - OpenRouter API"""
     api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key or not api_key.strip():
         raise Exception("OpenRouter API Key නොමැත.")
@@ -370,7 +359,6 @@ def call_openrouter(prompt_content: str, custom_system_instruction: str) -> str:
         return res_data["choices"][0]["message"]["content"]
 
 def generate_ai_response_fallback(prompt_content: str, custom_system_instruction: str):
-    """Ordered Fallback AI Engine (Gemini -> DeepSeek -> Groq -> OpenRouter)"""
     ai_providers = [
         ("Gemini API (Primary)", call_gemini),
         ("DeepSeek API (Fallback 1)", call_deepseek),
@@ -580,7 +568,6 @@ async def chat_endpoint(req: ChatRequest):
     user_full_name = req.full_name or user_first_name
     is_creator = (req.email and req.email.strip().lower() == "chamathmanujaya76@gmail.com")
 
-    # Fetch live Firebase Database context
     firebase_context = get_firebase_context_for_ai(is_creator=is_creator)
     prompt_content = f"{firebase_context}\n\n" + prompt_content
 
@@ -590,7 +577,6 @@ async def chat_endpoint(req: ChatRequest):
         custom_system_instruction = system_instruction + f"\n\nපරිශීලකයාගේ සම්පූර්ණ නම: {user_full_name}. පළමු නම: {user_first_name}. පරිශීලකයාට අමතන විට ඔහුව/ඇයව මිත්‍රශීලීව {user_first_name} ලෙස පළමු නමින් අමතන්න."
 
     try:
-        # Fallback AI System Call
         bot_reply, active_provider = generate_ai_response_fallback(prompt_content, custom_system_instruction)
     except Exception as e:
         return {
@@ -600,7 +586,6 @@ async def chat_endpoint(req: ChatRequest):
             "search_used": False
         }
 
-    # Save to Firestore under user's sub-collection
     if db and req.session_id and req.user_id and req.user_id != "guest":
         try:
             session_ref = db.collection("users").document(req.user_id).collection("chat_sessions").document(req.session_id)
@@ -633,6 +618,55 @@ async def chat_endpoint(req: ChatRequest):
         "provider": active_provider
     }
 
+# ================= WEBSOCKET REAL-TIME LIVE VOICE ENDPOINT =================
+
+@app.websocket("/ws/live")
+async def websocket_live_voice(websocket: WebSocket):
+    await websocket.accept()
+    print("Real-Time Live Voice WebSocket Client Connected")
+    
+    try:
+        while True:
+            data_str = await websocket.receive_text()
+            payload = json.loads(data_str)
+            
+            msg_type = payload.get("type")
+            if msg_type == "user_speech":
+                user_text = payload.get("text", "")
+                user_email = payload.get("email", "")
+                first_name = payload.get("first_name", "User")
+                is_creator = (user_email.strip().lower() == "chamathmanujaya76@gmail.com")
+                
+                firebase_context = get_firebase_context_for_ai(is_creator=is_creator)
+                
+                custom_instruction = system_instruction
+                if is_creator:
+                    custom_instruction += f"\n\nවත්මන් පරිශීලකයා ඔබේ සැබෑ Creator (නිර්මාතෘ) වන E.M.Chamath Manujaya වේ. ඉතා සංක්ෂිප්තව, සෘජුව සහ ගෞරවයෙන් උත්තර දෙන්න."
+                else:
+                    custom_instruction += f"\n\nපරිශීලකයාගේ පළමු නම: {first_name}. ඉතා සංක්ෂිප්තව (කෙටියෙන්) ස්වාභාවික සංවාද ශෛලියෙන් පිළිතුරු සපයන්න."
+
+                prompt = f"{firebase_context}\n\nLive User Query: {user_text}"
+                
+                try:
+                    bot_reply, _ = generate_ai_response_fallback(prompt, custom_instruction)
+                    await websocket.send_text(json.dumps({
+                        "type": "ai_response",
+                        "reply": bot_reply
+                    }))
+                except Exception as ex:
+                    await websocket.send_text(json.dumps({
+                        "type": "ai_response",
+                        "reply": "සමාවන්න, සන්නිවේදන දෝෂයක් සිදුවිය."
+                    }))
+                    
+            elif msg_type == "ping":
+                await websocket.send_text(json.dumps({"type": "pong"}))
+                
+    except WebSocketDisconnect:
+        print("Real-Time Live Voice WebSocket Client Disconnected")
+    except Exception as e:
+        print(f"WebSocket Live Error: {e}")
+
 @app.get("/api/history/{user_id}")
 async def get_user_chat_history(user_id: str):
     if not db or not user_id or user_id == "guest":
@@ -657,7 +691,6 @@ async def get_user_chat_history(user_id: str):
 
 @app.get("/api/analytics/users")
 async def get_user_analytics():
-    """Endpoint to aggregate users count, age groups, countries, and voice/gender preferences"""
     if not db:
         return {"success": False, "message": "Database (Firebase) සම්බන්ධ කර නැත."}
     
@@ -684,12 +717,10 @@ async def get_user_analytics():
             total_users += 1
             data = user_doc.to_dict()
 
-            # Country aggregation
             country = data.get("country", "Unknown") or "Unknown"
             country_clean = country.strip().capitalize()
             countries_count[country_clean] = countries_count.get(country_clean, 0) + 1
 
-            # Age group aggregation
             raw_age = data.get("age")
             if raw_age:
                 try:
@@ -709,7 +740,6 @@ async def get_user_analytics():
             else:
                 age_groups_count["Unspecified"] += 1
 
-            # Voice / Gender preference aggregation
             voice = data.get("voice_preference", "Unspecified") or "Unspecified"
             voice_clean = voice.strip().lower()
             if voice_clean in voice_pref_count:

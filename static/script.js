@@ -7,6 +7,11 @@ let conversationHistory = []; // Context Memory Store
 let chatHistoryListArray = []; // Sidebar History Items
 let activeSessionId = null;
 
+// Real-Time Live WebSocket & VAD Variables
+let liveSocket = null;
+let silenceTimer = null;
+let isUserSpeaking = false;
+
 // Audio Visualizer Context & Nodes
 let audioCtx = null;
 let analyser = null;
@@ -274,7 +279,10 @@ async function saveSettings(e) {
     e.preventDefault();
     if (!currentUser) return;
 
+    const newFirstName = document.getElementById("setFirstName").value.trim() || currentUser.first_name;
+    const newLastName = document.getElementById("setLastName").value.trim() || currentUser.last_name;
     const newAge = document.getElementById("setAge").value.trim();
+    const newCountry = document.getElementById("setCountry").value.trim() || currentUser.country;
     const newPurpose = document.getElementById("setPurpose").value.trim();
     const newPassword = document.getElementById("setPassword").value.trim();
     const voicePref = document.getElementById("voiceSelect") ? document.getElementById("voiceSelect").value : "male";
@@ -287,10 +295,10 @@ async function saveSettings(e) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 user_id: currentUser.id,
-                first_name: currentUser.first_name,
-                last_name: currentUser.last_name,
+                first_name: newFirstName,
+                last_name: newLastName,
                 age: newAge,
-                country: currentUser.country,
+                country: newCountry,
                 purpose: newPurpose,
                 password: newPassword,
                 voice_preference: voicePref,
@@ -300,7 +308,11 @@ async function saveSettings(e) {
 
         const data = await res.json();
         if (data.success) {
+            currentUser.first_name = newFirstName;
+            currentUser.last_name = newLastName;
+            currentUser.full_name = `${newFirstName} ${newLastName}`.trim();
             currentUser.age = newAge;
+            currentUser.country = newCountry;
             currentUser.purpose = newPurpose;
             currentUser.voice_preference = voicePref;
             currentUser.profile_pic = newPic;
@@ -858,7 +870,7 @@ function initThreeGlowVisualizer() {
     scene.add(glowRingLine);
 }
 
-// Audio Stream Context Setup
+// Audio Stream Context Setup with VAD Interruption Support
 async function initAudioVisualizer() {
     try {
         micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
@@ -878,7 +890,7 @@ async function initAudioVisualizer() {
     }
 }
 
-// Live Real-Time Rendering & Wave Displacement Loop
+// Live Real-Time Rendering, Wave Displacement & VAD Interruption Detection Loop
 function visualizeAudio() {
     if (!isLiveVoiceActive) return;
 
@@ -890,6 +902,18 @@ function visualizeAudio() {
         let sum = 0;
         for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
         averageFrequency = sum / (dataArray.length || 1);
+    }
+
+    // REAL-TIME VAD & INTERRUPTION DETECTION
+    if (averageFrequency > 25) { 
+        isUserSpeaking = true;
+        if (isAiSpeaking) {
+            if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+            isAiSpeaking = false;
+            document.getElementById("liveVoiceStatus").innerText = "සවන්දෙමින් පවතී... (Interrupted)";
+        }
+    } else {
+        isUserSpeaking = false;
     }
 
     aiVoiceWaveTime += 0.05;
@@ -949,6 +973,7 @@ function visualizeAudio() {
     animFrameId = requestAnimationFrame(visualizeAudio);
 }
 
+// Open Gemini-Live Style Full-Duplex Mode
 function openLiveVoiceMode() {
     isLiveVoiceActive = true;
     document.getElementById("liveVoiceOverlay").classList.add("active");
@@ -959,10 +984,45 @@ function openLiveVoiceMode() {
     const statusText = document.getElementById("liveVoiceStatus");
     if (statusText) statusText.innerText = greetingText;
 
+    connectLiveWebSocket();
     initAudioVisualizer();
+    
     speakText(greetingText, () => {
         startLiveListening();
     });
+}
+
+// Establish WebSockets Connection with FastAPI Backend
+function connectLiveWebSocket() {
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${wsProtocol}//${window.location.host}/ws/live`;
+
+    try {
+        liveSocket = new WebSocket(wsUrl);
+
+        liveSocket.onopen = () => {
+            console.log("Connected to Nexuz Live WebSocket");
+        };
+
+        liveSocket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === "ai_response") {
+                const reply = data.reply || "සමාවන්න, තේරුණේ නැත.";
+                const statusText = document.getElementById("liveVoiceStatus");
+                if (statusText) statusText.innerText = reply;
+                
+                speakText(reply, () => {
+                    if (isLiveVoiceActive) startLiveListening();
+                });
+            }
+        };
+
+        liveSocket.onclose = () => {
+            console.log("Live WebSocket Disconnected");
+        };
+    } catch (e) {
+        console.log("WebSocket Connection Error:", e);
+    }
 }
 
 function closeLiveVoiceMode() {
@@ -972,6 +1032,7 @@ function closeLiveVoiceMode() {
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     if (micStream) micStream.getTracks().forEach(t => t.stop());
     if (animFrameId) cancelAnimationFrame(animFrameId);
+    if (liveSocket) liveSocket.close();
     
     document.getElementById("liveVoiceOverlay").classList.remove("active");
 }
@@ -1012,6 +1073,7 @@ function speakText(text, onCompleteCallback = null) {
     }
 }
 
+// Continuous Real-Time Speech Recognition with Automatic Silence VAD
 function startLiveListening() {
     if (!isLiveVoiceActive || !SpeechRecognition) return;
 
@@ -1037,7 +1099,16 @@ function startLiveListening() {
         }
         if (transcriptText) transcriptText.innerText = text;
 
+        if (silenceTimer) clearTimeout(silenceTimer);
+        silenceTimer = setTimeout(() => {
+            if (text.trim().length > 0 && isLiveVoiceActive) {
+                recognition.stop();
+                processLiveVoiceInput(text);
+            }
+        }, 400);
+
         if (e.results[0].isFinal) {
+            if (silenceTimer) clearTimeout(silenceTimer);
             recognition.stop();
             processLiveVoiceInput(text);
         }
@@ -1045,7 +1116,7 @@ function startLiveListening() {
 
     recognition.onerror = (e) => {
         if (isLiveVoiceActive && !isAiSpeaking) {
-            setTimeout(startLiveListening, 1200);
+            setTimeout(startLiveListening, 1000);
         }
     };
 }
@@ -1059,38 +1130,45 @@ async function processLiveVoiceInput(userText) {
     const statusText = document.getElementById("liveVoiceStatus");
     if (statusText) statusText.innerText = "Nexuz සිතමින් පවතී...";
 
-    try {
-        const userId = currentUser ? currentUser.id : "guest";
-        const firstName = currentUser ? currentUser.first_name : "User";
-        const fullName = currentUser ? (currentUser.full_name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim()) : "User";
-        const userEmail = currentUser ? currentUser.email : "";
+    const firstName = currentUser ? currentUser.first_name : "User";
+    const userEmail = currentUser ? currentUser.email : "";
 
-        const res = await fetch("/api/chat", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                user_id: userId,
-                first_name: firstName,
-                full_name: fullName,
-                email: userEmail,
-                message: userText,
-                enable_search: true,
-                session_id: activeSessionId,
-                history: conversationHistory
-            })
-        });
+    if (liveSocket && liveSocket.readyState === WebSocket.OPEN) {
+        liveSocket.send(JSON.stringify({
+            type: "user_speech",
+            text: userText,
+            first_name: firstName,
+            email: userEmail
+        }));
+    } else {
+        try {
+            const res = await fetch("/api/chat", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    user_id: currentUser ? currentUser.id : "guest",
+                    first_name: firstName,
+                    full_name: currentUser ? (currentUser.full_name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim()) : "User",
+                    email: userEmail,
+                    message: userText,
+                    enable_search: true,
+                    session_id: activeSessionId,
+                    history: conversationHistory
+                })
+            });
 
-        const data = await res.json();
-        const reply = data.reply || "සමාවන්න, මට එය තේරුණේ නැත.";
+            const data = await res.json();
+            const reply = data.reply || "සමාවන්න, මට එය තේරුණේ නැත.";
 
-        if (statusText) statusText.innerText = reply;
-        speakText(reply, () => {
-            if (isLiveVoiceActive) startLiveListening();
-        });
+            if (statusText) statusText.innerText = reply;
+            speakText(reply, () => {
+                if (isLiveVoiceActive) startLiveListening();
+            });
 
-    } catch (err) {
-        if (statusText) statusText.innerText = "සන්නිවේදන දෝෂයක් සිදු විය.";
-        setTimeout(startLiveListening, 2000);
+        } catch (err) {
+            if (statusText) statusText.innerText = "සන්නිවේදන දෝෂයක් සිදු විය.";
+            setTimeout(startLiveListening, 2000);
+        }
     }
 }
 

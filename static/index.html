@@ -6,7 +6,6 @@
     <title>Nexuz | AI Assistant</title>
     <link rel="stylesheet" href="/static/style.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <!-- THREE.JS 3D GRAPHICS LIBRARY -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
@@ -19,7 +18,6 @@
                 <p id="authSubtitle">ඇප් එක පාවිච්චි කිරීමට ඔබගේ Account එක සාදන්න</p>
             </div>
 
-            <!-- REGISTER FORM -->
             <form class="auth-form" id="registerForm" onsubmit="handleRegister(event)">
                 <div class="form-row">
                     <div class="form-group">
@@ -71,7 +69,6 @@
                 </div>
             </form>
 
-            <!-- LOGIN FORM -->
             <form class="auth-form" id="loginForm" onsubmit="handleLogin(event)" style="display: none;">
                 <div class="form-group">
                     <label>විද්‍යුත් තැපෑල (Email)</label>
@@ -97,7 +94,6 @@
         <div class="auth-card settings-card modern-gemini-settings">
             <button class="close-settings-btn" onclick="closeSettingsModal()"><i class="fa-solid fa-xmark"></i></button>
             
-            <!-- 1. TOP PROFILE HEADER WITH CROWN CREATOR BADGE -->
             <div class="settings-profile-header">
                 <div class="avatar-preview-box brand-avatar-glow" onclick="document.getElementById('profilePicInput').click()" title="Change Profile Picture">
                     <img id="settingsAvatarPreview" src="" alt="Profile Preview" style="display: none;">
@@ -112,9 +108,7 @@
                 </div>
             </div>
 
-            <!-- 2. SETTINGS CONTENT BODY WITH VERTICAL TABS -->
             <div class="settings-body-layout">
-                <!-- VERTICAL MENU LIST -->
                 <div class="settings-nav-tabs-vertical">
                     <button class="nav-tab-btn active" onclick="switchSettingsTab('manage-account', this)">
                         <i class="fa-solid fa-user-gear"></i> <span>Manage Account</span>
@@ -145,20 +139,17 @@
                     </button>
                 </div>
 
-                <!-- RIGHT TAB DETAILS WRAPPER -->
                 <div class="settings-tab-content-wrapper">
-                    
-                    <!-- TAB 1: MANAGE ACCOUNT (LOCKED INPUTS FOR NAME, EMAIL, COUNTRY) -->
                     <div class="tab-content active" id="tab-manage-account">
                         <form class="auth-form" onsubmit="saveSettings(event)">
                             <div class="form-row">
                                 <div class="form-group">
                                     <label>පළමු නම (First Name)</label>
-                                    <input type="text" id="setFirstName" readonly disabled class="readonly-input">
+                                    <input type="text" id="setFirstName" placeholder="Chamath">
                                 </div>
                                 <div class="form-group">
                                     <label>දෙවන නම (Last Name)</label>
-                                    <input type="text" id="setLastName" readonly disabled class="readonly-input">
+                                    <input type="text" id="setLastName" placeholder="Manujaya">
                                 </div>
                             </div>
 
@@ -169,7 +160,7 @@
                                 </div>
                                 <div class="form-group">
                                     <label>රට (Country)</label>
-                                    <input type="text" id="setCountry" readonly disabled class="readonly-input">
+                                    <input type="text" id="setCountry" placeholder="Sri Lanka">
                                 </div>
                             </div>
 
@@ -192,7 +183,6 @@
                         </form>
                     </div>
 
-                    <!-- TAB 2: SUBSCRIPTION -->
                     <div class="tab-content" id="tab-subscription" style="display: none;">
                         <div class="empty-tab-placeholder">
                             <i class="fa-solid fa-gem"></i>
@@ -201,7 +191,6 @@
                         </div>
                     </div>
 
-                    <!-- TAB 3: PERSONAL INTELLIGENCE -->
                     <div class="tab-content" id="tab-personal-intel" style="display: none;">
                         <div class="empty-tab-placeholder">
                             <i class="fa-solid fa-brain"></i>
@@ -209,7 +198,6 @@
                         </div>
                     </div>
 
-                    <!-- TAB 4: NEXUZ VOICE -->
                     <div class="tab-content" id="tab-nexuz-voice" style="display: none;">
                         <div class="form-group">
                             <label>AI Voice Gender Selection</label>
@@ -230,7 +218,6 @@
                         </div>
                     </div>
 
-                    <!-- TAB 5: NOTIFICATIONS -->
                     <div class="tab-content" id="tab-notifications" style="display: none;">
                         <div class="setting-toggle-row">
                             <span>App Notifications</span>
@@ -241,7 +228,6 @@
                         </div>
                     </div>
 
-                    <!-- TAB 6: ABOUT -->
                     <div class="tab-content" id="tab-about" style="display: none;">
                         <div class="empty-tab-placeholder">
                             <i class="fa-solid fa-shield-halved"></i>
@@ -254,7 +240,6 @@
         </div>
     </div>
 
-    <!-- LOGOUT CONFIRMATION POPUP MODAL -->
     <div class="auth-modal-overlay" id="logoutConfirmModal" style="display: none;">
         <div class="auth-card confirm-card">
             <div class="auth-header">
@@ -269,12 +254,9 @@
         </div>
     </div>
 
-    <!-- SIDEBAR OVERLAY FOR MOBILE -->
     <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeMobileSidebar()"></div>
 
-    <!-- MAIN APP LAYOUT -->
     <div class="app-container">
-        <!-- Left Sidebar -->
         <aside class="sidebar collapsed" id="sidebar">
             <div class="sidebar-top">
                 <button class="sidebar-toggle-btn" onclick="toggleSidebar()" title="Toggle Sidebar">
@@ -305,7 +287,6 @@
                 </div>
             </div>
 
-            <!-- Vertical Profile & Settings Below -->
             <div class="sidebar-bottom">
                 <div class="user-profile">
                     <div class="user-avatar-wrapper" onclick="openSettingsModal()" title="Open Profile Settings">
@@ -323,9 +304,7 @@
             </div>
         </aside>
 
-        <!-- Main Workspace Area -->
         <main class="main-container" id="mainContainer">
-            <!-- Top Header -->
             <header class="app-header">
                 <button class="mobile-menu-btn" onclick="toggleSidebar()" title="Open Menu">
                     <i class="fa-solid fa-bars"></i>
@@ -337,7 +316,6 @@
                 </button>
             </header>
 
-            <!-- Center Banner Logo -->
             <div class="hero-banner" id="heroBanner">
                 <div class="logo1-box">
                     <img src="/static/logo1.png" id="logo1" alt="Logo 1" onerror="this.style.display='none'; document.getElementById('logo1-fallback').style.display='block';">
@@ -353,12 +331,9 @@
                 </div>
             </div>
 
-            <!-- Chat History Area -->
             <div class="chat-area" id="chatContainer"></div>
 
-            <!-- Floating Glow Input Bar -->
             <div class="input-wrapper">
-                <!-- Attached File Previews -->
                 <div class="file-preview-container" id="filePreviewContainer"></div>
 
                 <div class="search-option">

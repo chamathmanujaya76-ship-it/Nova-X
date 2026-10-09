@@ -213,7 +213,6 @@ body {
     border-left: 3px solid #7B00FF;
 }
 
-/* SIDEBAR BOTTOM VERTICAL ALIGNMENT FIX (Image 2 - Bug 1) */
 .sidebar-bottom {
     display: flex;
     flex-direction: column;
@@ -1131,7 +1130,6 @@ input:checked + .slider:before {
     transform: scale(1.05);
 }
 
-/* READONLY INPUT LOCK STYLING (Image 3 - Bug 2) */
 .readonly-input {
     background: #0b0516 !important;
     opacity: 0.6;
@@ -1254,7 +1252,6 @@ input:checked + .slider:before {
     text-decoration: underline;
 }
 
-/* FULLSCREEN LIVE OVERLAY CANVAS STYLING FIX (Image 1 - Bug 1) */
 .live-voice-overlay {
     display: none;
     position: fixed;
@@ -1371,7 +1368,6 @@ input:checked + .slider:before {
     box-shadow: 0 0 25px rgba(123, 0, 255, 0.8), 0 0 35px rgba(0, 68, 255, 0.6);
 }
 
-/* Mobile Responsiveness */
 @media screen and (max-width: 768px) {
     .settings-body-layout {
         flex-direction: column;
