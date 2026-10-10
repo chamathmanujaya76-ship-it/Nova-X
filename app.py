@@ -29,18 +29,134 @@ static_dir = os.path.join(base_dir, "static")
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
-# Environment Variables Loading
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-GEMINI_API_KEY_2 = os.environ.get("GEMINI_API_KEY_2")
-GEMINI_API_KEY_3 = os.environ.get("GEMINI_API_KEY_3")
-GEMINI_API_KEY_4 = os.environ.get("GEMINI_API_KEY_4")
+# ================= ENVIRONMENT VARIABLES & MULTI-KEY PRIORITY ARRAYS =================
 
-DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
+# 1. Gemini API Keys (Priority 1, 2, 3)
+GEMINI_KEYS = [
+    os.environ.get("GEMINI_API_KEY_1"),
+    os.environ.get("GEMINI_API_KEY_2"),
+    os.environ.get("GEMINI_API_KEY_3"),
+    os.environ.get("GEMINI_API_KEY")
+]
 
-TAVILY_API_KEY = os.environ.get("TAVILY_API_KEY")
-SERPAPI_API_KEY = os.environ.get("SERPAPI_API_KEY")
+# 2. Cloudflare Accounts & Tokens (Priority 1, 2, 3)
+CLOUDFLARE_ACCOUNTS = [
+    os.environ.get("CLOUDFLARE_ACCOUNT_ID_1"),
+    os.environ.get("CLOUDFLARE_ACCOUNT_ID_2"),
+    os.environ.get("CLOUDFLARE_ACCOUNT_ID_3"),
+    os.environ.get("CLOUDFLARE_ACCOUNT_ID")
+]
+CLOUDFLARE_TOKENS = [
+    os.environ.get("CLOUDFLARE_API_TOKEN_1"),
+    os.environ.get("CLOUDFLARE_API_TOKEN_2"),
+    os.environ.get("CLOUDFLARE_API_TOKEN_3"),
+    os.environ.get("CLOUDFLARE_API_TOKEN")
+]
+
+# 3. GitHub Tokens (Priority 1, 2, 3)
+GITHUB_TOKENS = [
+    os.environ.get("GITHUB_TOKEN_1"),
+    os.environ.get("GITHUB_TOKEN_2"),
+    os.environ.get("GITHUB_TOKEN_3"),
+    os.environ.get("GITHUB_TOKEN")
+]
+
+# 4. SambaNova Cloud Keys (Priority 1, 2, 3)
+SAMBANOVA_KEYS = [
+    os.environ.get("SAMBANOVA_API_KEY_1"),
+    os.environ.get("SAMBANOVA_API_KEY_2"),
+    os.environ.get("SAMBANOVA_API_KEY_3"),
+    os.environ.get("SAMBANOVA_API_KEY")
+]
+
+# 5. Together AI Keys (Priority 1, 2, 3)
+TOGETHER_KEYS = [
+    os.environ.get("TOGETHER_API_KEY_1"),
+    os.environ.get("TOGETHER_API_KEY_2"),
+    os.environ.get("TOGETHER_API_KEY_3"),
+    os.environ.get("TOGETHER_API_KEY")
+]
+
+# 6. Cerebras AI Keys (Priority 1, 2, 3)
+CEREBRAS_KEYS = [
+    os.environ.get("CEREBRAS_API_KEY_1"),
+    os.environ.get("CEREBRAS_API_KEY_2"),
+    os.environ.get("CEREBRAS_API_KEY_3"),
+    os.environ.get("CEREBRAS_API_KEY")
+]
+
+# 7. Groq API Keys (Priority 1, 2, 3)
+GROQ_KEYS = [
+    os.environ.get("GROQ_API_KEY_1"),
+    os.environ.get("GROQ_API_KEY_2"),
+    os.environ.get("GROQ_API_KEY_3"),
+    os.environ.get("GROQ_API_KEY")
+]
+
+# 8. DeepInfra Keys (Priority 1, 2, 3)
+DEEPINFRA_KEYS = [
+    os.environ.get("DEEPINFRA_API_KEY_1"),
+    os.environ.get("DEEPINFRA_API_KEY_2"),
+    os.environ.get("DEEPINFRA_API_KEY_3"),
+    os.environ.get("DEEPINFRA_API_KEY")
+]
+
+# 9. Cohere API Keys (Priority 1, 2, 3)
+COHERE_KEYS = [
+    os.environ.get("COHERE_API_KEY_1"),
+    os.environ.get("COHERE_API_KEY_2"),
+    os.environ.get("COHERE_API_KEY_3"),
+    os.environ.get("COHERE_API_KEY")
+]
+
+# 10. OpenRouter API Keys (Priority 1, 2, 3)
+OPENROUTER_KEYS = [
+    os.environ.get("OPENROUTER_API_KEY_1"),
+    os.environ.get("OPENROUTER_API_KEY_2"),
+    os.environ.get("OPENROUTER_API_KEY_3"),
+    os.environ.get("OPENROUTER_API_KEY")
+]
+
+# ================= SEARCH APIS & KEYS (PRIORITY ORDER) =================
+
+TAVILY_KEYS = [
+    os.environ.get("TAVILY_API_KEY_1"),
+    os.environ.get("TAVILY_API_KEY_2"),
+    os.environ.get("TAVILY_API_KEY_3"),
+    os.environ.get("TAVILY_API_KEY")
+]
+
+SERPAPI_KEYS = [
+    os.environ.get("SERPAPI_API_KEY_1"),
+    os.environ.get("SERPAPI_API_KEY_2"),
+    os.environ.get("SERPAPI_API_KEY")
+]
+
+GEEKFLARE_KEYS = [
+    os.environ.get("GEEKFLARE_API_KEY_1"),
+    os.environ.get("GEEKFLARE_API_KEY_2"),
+    os.environ.get("GEEKFLARE_API_KEY")
+]
+
+GOOGLE_SEARCH_KEYS = [
+    os.environ.get("GOOGLE_SEARCH_API_KEY_1"),
+    os.environ.get("GOOGLE_SEARCH_API_KEY_2"),
+    os.environ.get("GOOGLE_SEARCH_API_KEY_3"),
+    os.environ.get("GOOGLE_SEARCH_API_KEY")
+]
+
+GOOGLE_SEARCH_CX = [
+    os.environ.get("GOOGLE_SEARCH_CX_1", "469fa5f763ed944aa"),
+    os.environ.get("GOOGLE_SEARCH_CX_2", "41235783a736b49a1"),
+    os.environ.get("GOOGLE_SEARCH_CX_3", "d3dfab92099574e99")
+]
+
+EXA_KEYS = [
+    os.environ.get("EXA_API_KEY_1"),
+    os.environ.get("EXA_API_KEY_2"),
+    os.environ.get("EXA_API_KEY_3"),
+    os.environ.get("EXA_API_KEY")
+]
 
 db = None
 try:
@@ -74,7 +190,6 @@ def hash_password(password: str) -> str:
 # ================= HELPER FUNCTIONS FOR FIREBASE AI CONTEXT =================
 
 def get_firebase_context_for_ai(is_creator: bool) -> str:
-    """Reads Firebase database and generates context summary for AI"""
     if not db:
         return "[Firebase Database Status: Not Connected]"
 
@@ -142,63 +257,114 @@ def get_firebase_context_for_ai(is_creator: bool) -> str:
         print(f"Error generating Firebase AI Context: {e}")
         return "[Firebase Context Error: Failed to fetch live stats]"
 
-# ================= SEARCH PROVIDERS WITH IMAGE SEARCH SUPPORT =================
+# ================= MULTI-KEY PRIORITY SEARCH PROVIDERS =================
 
 def search_tavily(query: str) -> str:
-    api_key = os.environ.get("TAVILY_API_KEY")
-    if not api_key:
-        raise Exception("Tavily API key සකසා නොමැත.")
-    
-    url = "https://api.tavily.com/search"
-    headers = {"Content-Type": "application/json"}
-    payload = json.dumps({
-        "api_key": api_key.strip(),
-        "query": query,
-        "max_results": 4,
-        "include_images": True
-    }).encode('utf-8')
-
-    req = urllib.request.Request(url, data=payload, headers=headers)
-    with urllib.request.urlopen(req, timeout=8) as response:
-        data = json.loads(response.read().decode('utf-8'))
-        results = []
-        for r in data.get("results", []):
-            title = r.get("title", "")
-            content = r.get("content", "")
-            source_url = r.get("url", "")
-            if title or content:
-                results.append(f"📌 Title: {title}\nSnippet: {content}\nSource Link: {source_url}")
-        
-        images = data.get("images", [])
-        if images:
-            results.append("\n🖼️ Found Images:")
-            for img_url in images[:3]:
-                results.append(f"Image Direct URL: {img_url}")
-                
-        return "\n\n".join(results)
+    valid_keys = [k.strip() for k in TAVILY_KEYS if k and k.strip()]
+    for idx, key in enumerate(valid_keys, 1):
+        try:
+            url = "https://api.tavily.com/search"
+            headers = {"Content-Type": "application/json"}
+            payload = json.dumps({"api_key": key, "query": query, "max_results": 4, "include_images": True}).encode('utf-8')
+            req = urllib.request.Request(url, data=payload, headers=headers)
+            with urllib.request.urlopen(req, timeout=6) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                results = []
+                for r in data.get("results", []):
+                    title = r.get("title", "")
+                    content = r.get("content", "")
+                    source_url = r.get("url", "")
+                    if title or content:
+                        results.append(f"📌 Title: {title}\nSnippet: {content}\nSource Link: {source_url}")
+                images = data.get("images", [])
+                if images:
+                    results.append("\n🖼️ Found Images:")
+                    for img_url in images[:3]:
+                        results.append(f"Image Direct URL: {img_url}")
+                res_str = "\n\n".join(results)
+                if res_str.strip():
+                    return res_str
+        except Exception as e:
+            print(f"Tavily Key {idx} failed: {e}")
+            continue
+    raise Exception("සියලුම Tavily Keys අසාර්ථක විය.")
 
 def search_serpapi(query: str) -> str:
-    api_key = os.environ.get("SERPAPI_API_KEY")
-    if not api_key:
-        raise Exception("SerpAPI Key සකසා නොමැත.")
+    valid_keys = [k.strip() for k in SERPAPI_KEYS if k and k.strip()]
+    for idx, key in enumerate(valid_keys, 1):
+        try:
+            params = urllib.parse.urlencode({"q": query, "api_key": key, "engine": "google"})
+            url = f"https://serpapi.com/search.json?{params}"
+            req = urllib.request.Request(url)
+            with urllib.request.urlopen(req, timeout=6) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                results = []
+                for r in data.get("organic_results", [])[:4]:
+                    title = r.get("title", "")
+                    snippet = r.get("snippet", "")
+                    link = r.get("link", "")
+                    if title or snippet:
+                        results.append(f"📌 Title: {title}\nSnippet: {snippet}\nSource Link: {link}")
+                res_str = "\n\n".join(results)
+                if res_str.strip():
+                    return res_str
+        except Exception as e:
+            print(f"SerpAPI Key {idx} failed: {e}")
+            continue
+    raise Exception("සියලුම SerpAPI Keys අසාර්ථක විය.")
+
+def search_google_custom(query: str) -> str:
+    valid_keys = [k.strip() for k in GOOGLE_SEARCH_KEYS if k and k.strip()]
+    valid_cxs = [c.strip() for c in GOOGLE_SEARCH_CX if c and c.strip()]
+    if not valid_keys or not valid_cxs:
+        raise Exception("Google Search API Keys හෝ CX IDs සකසා නොමැත.")
     
-    params = urllib.parse.urlencode({
-        "q": query,
-        "api_key": api_key.strip(),
-        "engine": "google"
-    })
-    url = f"https://serpapi.com/search.json?{params}"
-    req = urllib.request.Request(url)
-    with urllib.request.urlopen(req, timeout=8) as response:
-        data = json.loads(response.read().decode('utf-8'))
-        results = []
-        for r in data.get("organic_results", [])[:4]:
-            title = r.get("title", "")
-            snippet = r.get("snippet", "")
-            link = r.get("link", "")
-            if title or snippet:
-                results.append(f"📌 Title: {title}\nSnippet: {snippet}\nSource Link: {link}")
-        return "\n\n".join(results)
+    for idx, key in enumerate(valid_keys):
+        cx = valid_cxs[idx % len(valid_cxs)]
+        try:
+            params = urllib.parse.urlencode({"key": key, "cx": cx, "q": query})
+            url = f"https://www.googleapis.com/customsearch/v1?{params}"
+            req = urllib.request.Request(url)
+            with urllib.request.urlopen(req, timeout=6) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                results = []
+                for item in data.get("items", [])[:4]:
+                    title = item.get("title", "")
+                    snippet = item.get("snippet", "")
+                    link = item.get("link", "")
+                    if title or snippet:
+                        results.append(f"📌 Title: {title}\nSnippet: {snippet}\nSource Link: {link}")
+                res_str = "\n\n".join(results)
+                if res_str.strip():
+                    return res_str
+        except Exception as e:
+            print(f"Google Search Key {idx+1} failed: {e}")
+            continue
+    raise Exception("සියලුම Google Search Keys අසාර්ථක විය.")
+
+def search_exa(query: str) -> str:
+    valid_keys = [k.strip() for k in EXA_KEYS if k and k.strip()]
+    for idx, key in enumerate(valid_keys, 1):
+        try:
+            url = "https://api.exa.ai/search"
+            headers = {"x-api-key": key, "Content-Type": "application/json"}
+            payload = json.dumps({"query": query, "numResults": 4}).encode('utf-8')
+            req = urllib.request.Request(url, data=payload, headers=headers)
+            with urllib.request.urlopen(req, timeout=6) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                results = []
+                for r in data.get("results", []):
+                    title = r.get("title", "")
+                    url_link = r.get("url", "")
+                    if title or url_link:
+                        results.append(f"📌 Title: {title}\nSource Link: {url_link}")
+                res_str = "\n\n".join(results)
+                if res_str.strip():
+                    return res_str
+        except Exception as e:
+            print(f"Exa Key {idx} failed: {e}")
+            continue
+    raise Exception("සියලුම Exa Keys අසාර්ථක විය.")
 
 def search_ddg(query: str) -> str:
     results = []
@@ -210,32 +376,27 @@ def search_ddg(query: str) -> str:
             link = r.get('href', '')
             if title or snippet:
                 results.append(f"📌 Title: {title}\nSnippet: {snippet}\nSource Link: {link}")
-        
         try:
             img_results = ddgs.images(clean_query, max_results=3)
             if img_results:
                 results.append("\n🖼️ Found Web Images:")
                 for img in img_results:
-                    img_title = img.get('title', 'Image')
-                    img_url = img.get('image', '')
-                    source = img.get('url', '')
-                    if img_url:
-                        results.append(f"Image Title: {img_title}\nImage URL: {img_url}\nSource URL: {source}")
+                    if img.get('image'):
+                        results.append(f"Image Title: {img.get('title', 'Image')}\nImage URL: {img.get('image')}\nSource URL: {img.get('url', '')}")
         except Exception as img_err:
             print(f"DDG Image Search Error: {img_err}")
-
     return "\n\n".join(results)
 
 def web_search(query: str) -> str:
     if not query or len(query.strip()) < 2:
         return ""
-    
     search_providers = [
         ("Tavily AI Search", search_tavily),
-        ("DuckDuckGo Search", search_ddg),
-        ("SerpAPI", search_serpapi)
+        ("SerpAPI", search_serpapi),
+        ("Google Custom Search", search_google_custom),
+        ("Exa AI", search_exa),
+        ("DuckDuckGo Search", search_ddg)
     ]
-
     for provider_name, search_fn in search_providers:
         try:
             res = search_fn(query)
@@ -244,26 +405,15 @@ def web_search(query: str) -> str:
                 return res
         except Exception as e:
             print(f"Search Provider [{provider_name}] Failed: {e}")
-
     return ""
 
-# ================= AI MODEL PROVIDERS WITH FALLBACK =================
+# ================= MULTI-KEY PRIORITY AI MODEL PROVIDERS & FALLBACK =================
 
 def call_gemini(prompt_content: str, custom_system_instruction: str) -> str:
-    gemini_keys = [
-        os.environ.get("GEMINI_API_KEY"),
-        os.environ.get("GEMINI_API_KEY_2"),
-        os.environ.get("GEMINI_API_KEY_3"),
-        os.environ.get("GEMINI_API_KEY_4"),
-    ]
-    
-    valid_keys = [k.strip() for k in gemini_keys if k and k.strip()]
-    
+    valid_keys = [k.strip() for k in GEMINI_KEYS if k and k.strip()]
     if not valid_keys:
-        raise Exception("Gemini API Key කිසිවක් සකසා නොමැත.")
-    
+        raise Exception("Gemini API Keys සකසා නොමැත.")
     models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-3.6-flash", "gemini-1.5-pro"]
-    
     for idx, key in enumerate(valid_keys, 1):
         try:
             client = genai.Client(api_key=key)
@@ -272,10 +422,7 @@ def call_gemini(prompt_content: str, custom_system_instruction: str) -> str:
                     response = client.models.generate_content(
                         model=model_name,
                         contents=prompt_content,
-                        config={
-                            "system_instruction": custom_system_instruction,
-                            "temperature": 0.7,
-                        }
+                        config={"system_instruction": custom_system_instruction, "temperature": 0.7}
                     )
                     if response and response.text:
                         return response.text
@@ -283,89 +430,146 @@ def call_gemini(prompt_content: str, custom_system_instruction: str) -> str:
                     print(f"Gemini Key {idx} error ({model_name}): {e}")
         except Exception as key_err:
             print(f"Gemini Key {idx} client error: {key_err}")
-            
     raise Exception("සියලුම Gemini API Keys සහ Models අසාර්ථක විය.")
 
-def call_deepseek(prompt_content: str, custom_system_instruction: str) -> str:
-    api_key = os.environ.get("DEEPSEEK_API_KEY")
-    if not api_key or not api_key.strip():
-        raise Exception("DeepSeek API Key නොමැත.")
-    
-    url = "https://api.deepseek.com/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {api_key.strip()}",
-        "Content-Type": "application/json"
-    }
-    payload = json.dumps({
-        "model": "deepseek-chat",
-        "messages": [
-            {"role": "system", "content": custom_system_instruction},
-            {"role": "user", "content": prompt_content}
-        ],
-        "temperature": 0.7
-    }).encode('utf-8')
-
-    req = urllib.request.Request(url, data=payload, headers=headers)
-    with urllib.request.urlopen(req, timeout=20) as resp:
-        res_data = json.loads(resp.read().decode('utf-8'))
-        return res_data["choices"][0]["message"]["content"]
-
 def call_groq(prompt_content: str, custom_system_instruction: str) -> str:
-    api_key = os.environ.get("GROQ_API_KEY")
-    if not api_key or not api_key.strip():
-        raise Exception("Groq API Key නොමැත.")
-    
-    url = "https://api.groq.com/openai/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {api_key.strip()}",
-        "Content-Type": "application/json"
-    }
-    payload = json.dumps({
-        "model": "llama-3.3-70b-versatile",
-        "messages": [
-            {"role": "system", "content": custom_system_instruction},
-            {"role": "user", "content": prompt_content}
-        ],
-        "temperature": 0.7
-    }).encode('utf-8')
-
-    req = urllib.request.Request(url, data=payload, headers=headers)
-    with urllib.request.urlopen(req, timeout=20) as resp:
-        res_data = json.loads(resp.read().decode('utf-8'))
-        return res_data["choices"][0]["message"]["content"]
+    valid_keys = [k.strip() for k in GROQ_KEYS if k and k.strip()]
+    for idx, key in enumerate(valid_keys, 1):
+        try:
+            url = "https://api.groq.com/openai/v1/chat/completions"
+            headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+            payload = json.dumps({
+                "model": "llama-3.3-70b-versatile",
+                "messages": [{"role": "system", "content": custom_system_instruction}, {"role": "user", "content": prompt_content}],
+                "temperature": 0.7
+            }).encode('utf-8')
+            req = urllib.request.Request(url, data=payload, headers=headers)
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                res_data = json.loads(resp.read().decode('utf-8'))
+                reply = res_data["choices"][0]["message"]["content"]
+                if reply and reply.strip():
+                    return reply
+        except Exception as e:
+            print(f"Groq Key {idx} failed: {e}")
+            continue
+    raise Exception("සියලුම Groq Keys අසාර්ථක විය.")
 
 def call_openrouter(prompt_content: str, custom_system_instruction: str) -> str:
-    api_key = os.environ.get("OPENROUTER_API_KEY")
-    if not api_key or not api_key.strip():
-        raise Exception("OpenRouter API Key නොමැත.")
-    
-    url = "https://openrouter.ai/api/v1/chat/completions"
-    headers = {
-        "Authorization": f"Bearer {api_key.strip()}",
-        "Content-Type": "application/json"
-    }
-    payload = json.dumps({
-        "model": "openrouter/auto",
-        "messages": [
-            {"role": "system", "content": custom_system_instruction},
-            {"role": "user", "content": prompt_content}
-        ],
-        "temperature": 0.7
-    }).encode('utf-8')
+    valid_keys = [k.strip() for k in OPENROUTER_KEYS if k and k.strip()]
+    for idx, key in enumerate(valid_keys, 1):
+        try:
+            url = "https://openrouter.ai/api/v1/chat/completions"
+            headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+            payload = json.dumps({
+                "model": "openrouter/auto",
+                "messages": [{"role": "system", "content": custom_system_instruction}, {"role": "user", "content": prompt_content}],
+                "temperature": 0.7
+            }).encode('utf-8')
+            req = urllib.request.Request(url, data=payload, headers=headers)
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                res_data = json.loads(resp.read().decode('utf-8'))
+                reply = res_data["choices"][0]["message"]["content"]
+                if reply and reply.strip():
+                    return reply
+        except Exception as e:
+            print(f"OpenRouter Key {idx} failed: {e}")
+            continue
+    raise Exception("සියලුම OpenRouter Keys අසාර්ථක විය.")
 
-    req = urllib.request.Request(url, data=payload, headers=headers)
-    with urllib.request.urlopen(req, timeout=20) as resp:
-        res_data = json.loads(resp.read().decode('utf-8'))
-        return res_data["choices"][0]["message"]["content"]
+def call_cerebras(prompt_content: str, custom_system_instruction: str) -> str:
+    valid_keys = [k.strip() for k in CEREBRAS_KEYS if k and k.strip()]
+    for idx, key in enumerate(valid_keys, 1):
+        try:
+            url = "https://api.cerebras.ai/v1/chat/completions"
+            headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+            payload = json.dumps({
+                "model": "llama3.1-70b",
+                "messages": [{"role": "system", "content": custom_system_instruction}, {"role": "user", "content": prompt_content}],
+                "temperature": 0.7
+            }).encode('utf-8')
+            req = urllib.request.Request(url, data=payload, headers=headers)
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                res_data = json.loads(resp.read().decode('utf-8'))
+                reply = res_data["choices"][0]["message"]["content"]
+                if reply and reply.strip():
+                    return reply
+        except Exception as e:
+            print(f"Cerebras Key {idx} failed: {e}")
+            continue
+    raise Exception("සියලුම Cerebras Keys අසාර්ථක විය.")
+
+def call_together(prompt_content: str, custom_system_instruction: str) -> str:
+    valid_keys = [k.strip() for k in TOGETHER_KEYS if k and k.strip()]
+    for idx, key in enumerate(valid_keys, 1):
+        try:
+            url = "https://api.together.xyz/v1/chat/completions"
+            headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+            payload = json.dumps({
+                "model": "meta-llama/Llama-3-70b-chat-hf",
+                "messages": [{"role": "system", "content": custom_system_instruction}, {"role": "user", "content": prompt_content}],
+                "temperature": 0.7
+            }).encode('utf-8')
+            req = urllib.request.Request(url, data=payload, headers=headers)
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                res_data = json.loads(resp.read().decode('utf-8'))
+                reply = res_data["choices"][0]["message"]["content"]
+                if reply and reply.strip():
+                    return reply
+        except Exception as e:
+            print(f"Together AI Key {idx} failed: {e}")
+            continue
+    raise Exception("සියලුම Together AI Keys අසාර්ථක විය.")
+
+def call_deepinfra(prompt_content: str, custom_system_instruction: str) -> str:
+    valid_keys = [k.strip() for k in DEEPINFRA_KEYS if k and k.strip()]
+    for idx, key in enumerate(valid_keys, 1):
+        try:
+            url = "https://api.deepinfra.com/v1/openai/chat/completions"
+            headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+            payload = json.dumps({
+                "model": "meta-llama/Meta-Llama-3-70B-Instruct",
+                "messages": [{"role": "system", "content": custom_system_instruction}, {"role": "user", "content": prompt_content}],
+                "temperature": 0.7
+            }).encode('utf-8')
+            req = urllib.request.Request(url, data=payload, headers=headers)
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                res_data = json.loads(resp.read().decode('utf-8'))
+                reply = res_data["choices"][0]["message"]["content"]
+                if reply and reply.strip():
+                    return reply
+        except Exception as e:
+            print(f"DeepInfra Key {idx} failed: {e}")
+            continue
+    raise Exception("සියලුම DeepInfra Keys අසාර්ථක විය.")
+
+def call_cohere(prompt_content: str, custom_system_instruction: str) -> str:
+    valid_keys = [k.strip() for k in COHERE_KEYS if k and k.strip()]
+    for idx, key in enumerate(valid_keys, 1):
+        try:
+            url = "https://api.cohere.ai/v1/chat"
+            headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+            payload = json.dumps({"model": "command-r-plus", "message": prompt_content, "preamble": custom_system_instruction}).encode('utf-8')
+            req = urllib.request.Request(url, data=payload, headers=headers)
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                res_data = json.loads(resp.read().decode('utf-8'))
+                reply = res_data.get("text", "")
+                if reply and reply.strip():
+                    return reply
+        except Exception as e:
+            print(f"Cohere Key {idx} failed: {e}")
+            continue
+    raise Exception("සියලුම Cohere Keys අසාර්ථක විය.")
 
 def generate_ai_response_fallback(prompt_content: str, custom_system_instruction: str):
     ai_providers = [
-        ("Gemini API (Primary)", call_gemini),
-        ("DeepSeek API (Fallback 1)", call_deepseek),
-        ("Groq API (Fallback 2)", call_groq),
-        ("OpenRouter API (Fallback 3)", call_openrouter)
+        ("Gemini API (Priority 1)", call_gemini),
+        ("Groq API (Priority 2)", call_groq),
+        ("OpenRouter API (Priority 3)", call_openrouter),
+        ("Cerebras AI (Priority 4)", call_cerebras),
+        ("Together AI (Priority 5)", call_together),
+        ("DeepInfra (Priority 6)", call_deepinfra),
+        ("Cohere API (Priority 7)", call_cohere)
     ]
-
     errors = []
     for provider_name, provider_fn in ai_providers:
         try:
@@ -378,8 +582,7 @@ def generate_ai_response_fallback(prompt_content: str, custom_system_instruction
             err_msg = str(e)
             print(f"AI Provider [{provider_name}] Error: {err_msg}")
             errors.append(f"{provider_name}: {err_msg}")
-
-    raise Exception(f"සියලුම AI Providers ක්‍රියා විරහිතයි: {'; '.join(errors)}")
+    raise Exception(f"සියලුම AI Providers සහ Multi-Keys ක්‍රියා විරහිතයි: {'; '.join(errors)}")
 
 # ================= SYSTEM INSTRUCTIONS & MODELS =================
 
@@ -589,7 +792,6 @@ async def chat_endpoint(req: ChatRequest):
     if db and req.session_id and req.user_id and req.user_id != "guest":
         try:
             session_ref = db.collection("users").document(req.user_id).collection("chat_sessions").document(req.session_id)
-            
             session_ref.set({
                 "user_id": req.user_id,
                 "title": user_prompt[:30],
@@ -598,16 +800,8 @@ async def chat_endpoint(req: ChatRequest):
             }, merge=True)
 
             messages_ref = session_ref.collection("messages")
-            messages_ref.add({
-                "role": "user",
-                "content": user_prompt,
-                "timestamp": datetime.utcnow()
-            })
-            messages_ref.add({
-                "role": "assistant",
-                "content": bot_reply,
-                "timestamp": datetime.utcnow()
-            })
+            messages_ref.add({"role": "user", "content": user_prompt, "timestamp": datetime.utcnow()})
+            messages_ref.add({"role": "assistant", "content": bot_reply, "timestamp": datetime.utcnow()})
         except Exception as ex:
             print(f"Firestore User Session Save Error: {ex}")
 
@@ -624,19 +818,16 @@ async def chat_endpoint(req: ChatRequest):
 async def websocket_live_voice(websocket: WebSocket):
     await websocket.accept()
     print("Real-Time Live Voice WebSocket Client Connected")
-    
     try:
         while True:
             data_str = await websocket.receive_text()
             payload = json.loads(data_str)
-            
             msg_type = payload.get("type")
             if msg_type == "user_speech":
                 user_text = payload.get("text", "")
                 user_email = payload.get("email", "")
                 first_name = payload.get("first_name", "User")
                 is_creator = (user_email.strip().lower() == "chamathmanujaya76@gmail.com")
-                
                 firebase_context = get_firebase_context_for_ai(is_creator=is_creator)
                 
                 custom_instruction = system_instruction
@@ -646,22 +837,13 @@ async def websocket_live_voice(websocket: WebSocket):
                     custom_instruction += f"\n\nපරිශීලකයාගේ පළමු නම: {first_name}. ඉතා සංක්ෂිප්තව (කෙටියෙන්) ස්වාභාවික සංවාද ශෛලියෙන් පිළිතුරු සපයන්න."
 
                 prompt = f"{firebase_context}\n\nLive User Query: {user_text}"
-                
                 try:
                     bot_reply, _ = generate_ai_response_fallback(prompt, custom_instruction)
-                    await websocket.send_text(json.dumps({
-                        "type": "ai_response",
-                        "reply": bot_reply
-                    }))
+                    await websocket.send_text(json.dumps({"type": "ai_response", "reply": bot_reply}))
                 except Exception as ex:
-                    await websocket.send_text(json.dumps({
-                        "type": "ai_response",
-                        "reply": "සමාවන්න, සන්නිවේදන දෝෂයක් සිදුවිය."
-                    }))
-                    
+                    await websocket.send_text(json.dumps({"type": "ai_response", "reply": "සමාවන්න, සන්නිවේදන දෝෂයක් සිදුවිය."}))
             elif msg_type == "ping":
                 await websocket.send_text(json.dumps({"type": "pong"}))
-                
     except WebSocketDisconnect:
         print("Real-Time Live Voice WebSocket Client Disconnected")
     except Exception as e:
@@ -674,7 +856,6 @@ async def get_user_chat_history(user_id: str):
     try:
         sessions_ref = db.collection("users").document(user_id).collection("chat_sessions")
         docs = sessions_ref.order_by("last_updated", direction=firestore.Query.DESCENDING).stream()
-        
         session_list = []
         for doc in docs:
             data = doc.to_dict()
@@ -687,36 +868,20 @@ async def get_user_chat_history(user_id: str):
     except Exception as e:
         return {"success": False, "error": str(e)}
 
-# ================= USER ANALYTICS ENDPOINT =================
-
 @app.get("/api/analytics/users")
 async def get_user_analytics():
     if not db:
         return {"success": False, "message": "Database (Firebase) සම්බන්ධ කර නැත."}
-    
     try:
         users_ref = db.collection("users").stream()
-        
         total_users = 0
         countries_count = {}
-        age_groups_count = {
-            "Under 18": 0,
-            "18-24": 0,
-            "25-34": 0,
-            "35-44": 0,
-            "45+": 0,
-            "Unspecified": 0
-        }
-        voice_pref_count = {
-            "male": 0,
-            "female": 0,
-            "Unspecified": 0
-        }
+        age_groups_count = {"Under 18": 0, "18-24": 0, "25-34": 0, "35-44": 0, "45+": 0, "Unspecified": 0}
+        voice_pref_count = {"male": 0, "female": 0, "Unspecified": 0}
 
         for user_doc in users_ref:
             total_users += 1
             data = user_doc.to_dict()
-
             country = data.get("country", "Unknown") or "Unknown"
             country_clean = country.strip().capitalize()
             countries_count[country_clean] = countries_count.get(country_clean, 0) + 1
@@ -725,16 +890,11 @@ async def get_user_analytics():
             if raw_age:
                 try:
                     age_num = int(raw_age)
-                    if age_num < 18:
-                        age_groups_count["Under 18"] += 1
-                    elif 18 <= age_num <= 24:
-                        age_groups_count["18-24"] += 1
-                    elif 25 <= age_num <= 34:
-                        age_groups_count["25-34"] += 1
-                    elif 35 <= age_num <= 44:
-                        age_groups_count["35-44"] += 1
-                    else:
-                        age_groups_count["45+"] += 1
+                    if age_num < 18: age_groups_count["Under 18"] += 1
+                    elif 18 <= age_num <= 24: age_groups_count["18-24"] += 1
+                    elif 25 <= age_num <= 34: age_groups_count["25-34"] += 1
+                    elif 35 <= age_num <= 44: age_groups_count["35-44"] += 1
+                    else: age_groups_count["45+"] += 1
                 except ValueError:
                     age_groups_count["Unspecified"] += 1
             else:
@@ -754,7 +914,6 @@ async def get_user_analytics():
             "age_groups": age_groups_count,
             "countries": countries_count
         }
-
     except Exception as e:
         return {"success": False, "error": str(e)}
 
