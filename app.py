@@ -31,7 +31,6 @@ if os.path.exists(static_dir):
 
 # ================= ENVIRONMENT VARIABLES & MULTI-KEY PRIORITY ARRAYS =================
 
-# 1. Gemini API Keys (Priority 1, 2, 3)
 GEMINI_KEYS = [
     os.environ.get("GEMINI_API_KEY_1"),
     os.environ.get("GEMINI_API_KEY_2"),
@@ -39,7 +38,6 @@ GEMINI_KEYS = [
     os.environ.get("GEMINI_API_KEY")
 ]
 
-# 2. Cloudflare Accounts & Tokens (Priority 1, 2, 3)
 CLOUDFLARE_ACCOUNTS = [
     os.environ.get("CLOUDFLARE_ACCOUNT_ID_1"),
     os.environ.get("CLOUDFLARE_ACCOUNT_ID_2"),
@@ -53,7 +51,6 @@ CLOUDFLARE_TOKENS = [
     os.environ.get("CLOUDFLARE_API_TOKEN")
 ]
 
-# 3. GitHub Tokens (Priority 1, 2, 3)
 GITHUB_TOKENS = [
     os.environ.get("GITHUB_TOKEN_1"),
     os.environ.get("GITHUB_TOKEN_2"),
@@ -61,7 +58,6 @@ GITHUB_TOKENS = [
     os.environ.get("GITHUB_TOKEN")
 ]
 
-# 4. SambaNova Cloud Keys (Priority 1, 2, 3)
 SAMBANOVA_KEYS = [
     os.environ.get("SAMBANOVA_API_KEY_1"),
     os.environ.get("SAMBANOVA_API_KEY_2"),
@@ -69,7 +65,6 @@ SAMBANOVA_KEYS = [
     os.environ.get("SAMBANOVA_API_KEY")
 ]
 
-# 5. Together AI Keys (Priority 1, 2, 3)
 TOGETHER_KEYS = [
     os.environ.get("TOGETHER_API_KEY_1"),
     os.environ.get("TOGETHER_API_KEY_2"),
@@ -77,7 +72,6 @@ TOGETHER_KEYS = [
     os.environ.get("TOGETHER_API_KEY")
 ]
 
-# 6. Cerebras AI Keys (Priority 1, 2, 3)
 CEREBRAS_KEYS = [
     os.environ.get("CEREBRAS_API_KEY_1"),
     os.environ.get("CEREBRAS_API_KEY_2"),
@@ -85,7 +79,6 @@ CEREBRAS_KEYS = [
     os.environ.get("CEREBRAS_API_KEY")
 ]
 
-# 7. Groq API Keys (Priority 1, 2, 3)
 GROQ_KEYS = [
     os.environ.get("GROQ_API_KEY_1"),
     os.environ.get("GROQ_API_KEY_2"),
@@ -93,7 +86,6 @@ GROQ_KEYS = [
     os.environ.get("GROQ_API_KEY")
 ]
 
-# 8. DeepInfra Keys (Priority 1, 2, 3)
 DEEPINFRA_KEYS = [
     os.environ.get("DEEPINFRA_API_KEY_1"),
     os.environ.get("DEEPINFRA_API_KEY_2"),
@@ -101,7 +93,6 @@ DEEPINFRA_KEYS = [
     os.environ.get("DEEPINFRA_API_KEY")
 ]
 
-# 9. Cohere API Keys (Priority 1, 2, 3)
 COHERE_KEYS = [
     os.environ.get("COHERE_API_KEY_1"),
     os.environ.get("COHERE_API_KEY_2"),
@@ -109,7 +100,6 @@ COHERE_KEYS = [
     os.environ.get("COHERE_API_KEY")
 ]
 
-# 10. OpenRouter API Keys (Priority 1, 2, 3)
 OPENROUTER_KEYS = [
     os.environ.get("OPENROUTER_API_KEY_1"),
     os.environ.get("OPENROUTER_API_KEY_2"),
@@ -395,7 +385,7 @@ def web_search(query: str) -> str:
         ("SerpAPI", search_serpapi),
         ("Google Custom Search", search_google_custom),
         ("Exa AI", search_exa),
-        ("DuckDuckGo Search", search_ddg)
+        ("DuckDuckGo / Scraper Node", search_ddg)
     ]
     for provider_name, search_fn in search_providers:
         try:

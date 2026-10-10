@@ -7,6 +7,8 @@
 
 html, body {
     scrollbar-gutter: stable;
+    height: 100%;
+    overflow: hidden;
 }
 
 ::-webkit-scrollbar {
@@ -31,15 +33,16 @@ body {
     background-color: #000000 !important;
     background: #000000 !important;
     color: #ffffff;
-    height: 100vh;
+    height: 100dvh;
     overflow: hidden;
 }
 
 .app-container {
     display: flex;
     width: 100vw;
-    height: 100vh;
+    height: 100dvh;
     position: relative;
+    overflow: hidden;
 }
 
 .sidebar-overlay {
@@ -56,7 +59,7 @@ body {
 
 .sidebar {
     width: 260px;
-    height: 100vh;
+    height: 100dvh;
     background: #04020A !important;
     border-right: 1.5px solid rgba(123, 0, 255, 0.35) !important;
     display: flex;
@@ -314,16 +317,16 @@ body {
     transform: rotate(45deg);
 }
 
-/* Main Workspace Container */
+/* Main Workspace Container - Fixed bottom clipping */
 .main-container {
     flex: 1;
-    height: 100vh;
+    height: 100dvh;
     background-color: #000000 !important;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
     align-items: center;
-    padding: 15px 25px;
+    padding: 12px 20px max(15px, env(safe-area-inset-bottom)) 20px;
     position: relative;
     overflow: hidden;
 }
@@ -395,7 +398,7 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    margin-top: 20px;
+    margin-top: 15px;
     text-align: center;
     transition: opacity 0.4s ease;
 }
@@ -462,7 +465,7 @@ body {
     max-width: 760px;
     flex: 1;
     overflow-y: auto;
-    margin: 15px 0;
+    margin: 10px 0;
     display: flex;
     flex-direction: column;
     gap: 16px;
@@ -647,7 +650,7 @@ body {
     flex-direction: column;
     align-items: center;
     gap: 8px;
-    margin-bottom: 5px;
+    margin-bottom: 2px;
 }
 
 .file-preview-container {
@@ -839,7 +842,7 @@ body {
 .app-footer {
     font-size: 11px;
     color: #bbbbbb;
-    margin-top: 6px;
+    margin-top: 4px;
     text-align: center;
 }
 
@@ -1388,7 +1391,7 @@ input:checked + .slider:before {
     }
 
     .main-container {
-        padding: 10px 12px;
+        padding: 10px 12px max(12px, env(safe-area-inset-bottom)) 12px;
     }
 
     .mobile-menu-btn {
@@ -1400,7 +1403,7 @@ input:checked + .slider:before {
         top: 0;
         left: -280px;
         width: 270px !important;
-        height: 100vh;
+        height: 100dvh;
         z-index: 1000;
         box-shadow: 5px 0 25px rgba(0, 0, 0, 0.9);
     }

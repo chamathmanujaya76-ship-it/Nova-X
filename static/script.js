@@ -3,22 +3,19 @@ let autoSendTimer = null;
 let isLiveVoiceActive = false;
 let selectedFiles = [];
 let currentUser = null;
-let conversationHistory = []; // Context Memory Store
-let chatHistoryListArray = []; // Sidebar History Items
+let conversationHistory = [];
+let chatHistoryListArray = [];
 let activeSessionId = null;
 
-// Real-Time Live WebSocket & VAD Variables
 let liveSocket = null;
 let silenceTimer = null;
 let isUserSpeaking = false;
 
-// Audio Visualizer Context & Nodes
 let audioCtx = null;
 let analyser = null;
 let micStream = null;
 let animFrameId = null;
 
-// Three.js 3D Wave Particle Visualizer Variables
 let scene, camera, renderer, particleSystem;
 let glowRingLine, glowRingGeometry;
 let numParticles = 4000;
@@ -28,7 +25,6 @@ let aiVoiceWaveTime = 0;
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-// App Initialization on Page Load
 document.addEventListener("DOMContentLoaded", () => {
     checkUserAuth();
     loadSavedHistory();
@@ -39,7 +35,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 });
 
-// User Auth Check
 function checkUserAuth() {
     const savedUser = localStorage.getItem("nexuz_user_data");
     const authModal = document.getElementById("authModal");
@@ -53,7 +48,6 @@ function checkUserAuth() {
     }
 }
 
-// Update User Profile Display in Sidebar & Settings Header
 function updateSidebarUserDisplay() {
     if (!currentUser) return;
 
@@ -94,7 +88,6 @@ function updateSidebarUserDisplay() {
     }
 }
 
-// Toggle Register / Login Form
 function toggleAuthMode(mode) {
     const regForm = document.getElementById("registerForm");
     const loginForm = document.getElementById("loginForm");
@@ -111,7 +104,6 @@ function toggleAuthMode(mode) {
     }
 }
 
-// Register Handler
 async function handleRegister(e) {
     e.preventDefault();
 
@@ -150,7 +142,6 @@ async function handleRegister(e) {
     }
 }
 
-// Login Handler
 async function handleLogin(e) {
     e.preventDefault();
 
@@ -176,13 +167,11 @@ async function handleLogin(e) {
     }
 }
 
-// Show Logout Confirmation Modal
 function showLogoutConfirmation() {
     const modal = document.getElementById("logoutConfirmModal");
     if (modal) modal.style.display = "flex";
 }
 
-// Confirm Logout Action
 function confirmLogout(isConfirmed) {
     const modal = document.getElementById("logoutConfirmModal");
     if (modal) modal.style.display = "none";
@@ -193,7 +182,6 @@ function confirmLogout(isConfirmed) {
     }
 }
 
-// Settings Vertical Tabs Switcher
 function switchSettingsTab(tabName, btnElem) {
     const tabs = document.querySelectorAll(".tab-content");
     tabs.forEach(tab => {
@@ -215,7 +203,6 @@ function switchSettingsTab(tabName, btnElem) {
     }
 }
 
-// Settings Modal Setup
 function openSettingsModal() {
     const modal = document.getElementById("settingsModal");
     if (!modal) return;
@@ -327,7 +314,6 @@ async function saveSettings(e) {
     }
 }
 
-// Sidebar Drawer Management
 function toggleSidebar() {
     const sidebar = document.getElementById("sidebar");
     const overlay = document.getElementById("sidebarOverlay");
@@ -359,7 +345,6 @@ function startNewChat() {
     closeMobileSidebar();
 }
 
-// Sidebar History Management
 function loadSavedHistory() {
     const saved = localStorage.getItem("nexuz_chat_history_list");
     if (saved) {
@@ -454,7 +439,6 @@ function renderSidebarHistory() {
     });
 }
 
-// File Attachment Handler
 function handleFileSelect(e) {
     const files = Array.from(e.target.files);
     files.forEach(file => selectedFiles.push(file));
@@ -493,7 +477,6 @@ function renderFilePreviews() {
     });
 }
 
-// Custom Markdown Engine
 function renderMarkdown(text) {
     if (!text) return "";
     
@@ -544,7 +527,6 @@ function copyCodeToClipboard(codeId, buttonElem) {
     });
 }
 
-// Message Sending Logic
 async function sendMessage(presetMessage = null) {
     const input = document.getElementById("userInput");
     const message = presetMessage || input.value.trim();
@@ -764,7 +746,7 @@ function startVoiceToText() {
 }
 
 // =========================================================================
-// THREE.JS 3D GLOWING WAVEFORM PARTICLE SYSTEM ENGINE FOR NEXUZ LIVE VOICE
+// THREE.JS 3D GLOWING WAVEFORM PARTICLE SYSTEM & LIVE VOICE ENGINE
 // =========================================================================
 
 function createGlowTexture() {
@@ -802,7 +784,6 @@ function initThreeGlowVisualizer() {
     renderer.setSize(380, 380);
     renderer.setPixelRatio(window.devicePixelRatio ? window.devicePixelRatio : 1);
 
-    // 1. OUTER PARTICLE SYSTEM
     const geometry = new THREE.BufferGeometry();
     particlePositions = new Float32Array(numParticles * 3);
     originalPositions = new Float32Array(numParticles * 3);
@@ -846,7 +827,6 @@ function initThreeGlowVisualizer() {
     particleSystem = new THREE.Points(geometry, pMaterial);
     scene.add(particleSystem);
 
-    // 2. INNER SOLID NEON GLOWING WAVE RING
     const ringPointsCount = 200;
     const ringPositions = new Float32Array(ringPointsCount * 3);
     
@@ -870,7 +850,6 @@ function initThreeGlowVisualizer() {
     scene.add(glowRingLine);
 }
 
-// Audio Stream Context Setup with VAD Interruption Support
 async function initAudioVisualizer() {
     try {
         micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
@@ -890,7 +869,6 @@ async function initAudioVisualizer() {
     }
 }
 
-// Live Real-Time Rendering, Wave Displacement & VAD Interruption Detection Loop
 function visualizeAudio() {
     if (!isLiveVoiceActive) return;
 
@@ -904,13 +882,13 @@ function visualizeAudio() {
         averageFrequency = sum / (dataArray.length || 1);
     }
 
-    // REAL-TIME VAD & INTERRUPTION DETECTION
-    if (averageFrequency > 25) { 
+    if (averageFrequency > 22) { 
         isUserSpeaking = true;
         if (isAiSpeaking) {
             if ('speechSynthesis' in window) window.speechSynthesis.cancel();
             isAiSpeaking = false;
-            document.getElementById("liveVoiceStatus").innerText = "සවන්දෙමින් පවතී... (Interrupted)";
+            const st = document.getElementById("liveVoiceStatus");
+            if (st) st.innerText = "සවන්දෙමින් පවතී... (Interrupted)";
         }
     } else {
         isUserSpeaking = false;
@@ -973,7 +951,6 @@ function visualizeAudio() {
     animFrameId = requestAnimationFrame(visualizeAudio);
 }
 
-// Open Gemini-Live Style Full-Duplex Mode
 function openLiveVoiceMode() {
     isLiveVoiceActive = true;
     document.getElementById("liveVoiceOverlay").classList.add("active");
@@ -988,11 +965,10 @@ function openLiveVoiceMode() {
     initAudioVisualizer();
     
     speakText(greetingText, () => {
-        startLiveListening();
+        if (isLiveVoiceActive) startLiveListening();
     });
 }
 
-// Establish WebSockets Connection with FastAPI Backend
 function connectLiveWebSocket() {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${wsProtocol}//${window.location.host}/ws/live`;
@@ -1028,7 +1004,9 @@ function connectLiveWebSocket() {
 function closeLiveVoiceMode() {
     isLiveVoiceActive = false;
     isAiSpeaking = false;
-    if (recognition) recognition.stop();
+    if (recognition) {
+        try { recognition.stop(); } catch(e){}
+    }
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     if (micStream) micStream.getTracks().forEach(t => t.stop());
     if (animFrameId) cancelAnimationFrame(animFrameId);
@@ -1073,9 +1051,8 @@ function speakText(text, onCompleteCallback = null) {
     }
 }
 
-// Continuous Real-Time Speech Recognition with Automatic Silence VAD
 function startLiveListening() {
-    if (!isLiveVoiceActive || !SpeechRecognition) return;
+    if (!isLiveVoiceActive || !SpeechRecognition || isAiSpeaking) return;
 
     const statusText = document.getElementById("liveVoiceStatus");
     const transcriptText = document.getElementById("liveTranscript");
@@ -1089,6 +1066,7 @@ function startLiveListening() {
     recognition = new SpeechRecognition();
     recognition.lang = "si-LK";
     recognition.interimResults = true;
+    recognition.continuous = false;
 
     recognition.start();
 
@@ -1102,21 +1080,27 @@ function startLiveListening() {
         if (silenceTimer) clearTimeout(silenceTimer);
         silenceTimer = setTimeout(() => {
             if (text.trim().length > 0 && isLiveVoiceActive) {
-                recognition.stop();
+                try { recognition.stop(); } catch(err){}
                 processLiveVoiceInput(text);
             }
-        }, 400);
+        }, 600);
 
         if (e.results[0].isFinal) {
             if (silenceTimer) clearTimeout(silenceTimer);
-            recognition.stop();
+            try { recognition.stop(); } catch(err){}
             processLiveVoiceInput(text);
         }
     };
 
     recognition.onerror = (e) => {
         if (isLiveVoiceActive && !isAiSpeaking) {
-            setTimeout(startLiveListening, 1000);
+            setTimeout(startLiveListening, 800);
+        }
+    };
+
+    recognition.onend = () => {
+        if (isLiveVoiceActive && !isAiSpeaking && transcriptText && !transcriptText.innerText.trim()) {
+            setTimeout(startLiveListening, 500);
         }
     };
 }
@@ -1128,7 +1112,9 @@ async function processLiveVoiceInput(userText) {
     }
 
     const statusText = document.getElementById("liveVoiceStatus");
+    const transcriptText = document.getElementById("liveTranscript");
     if (statusText) statusText.innerText = "Nexuz සිතමින් පවතී...";
+    if (transcriptText) transcriptText.innerText = "";
 
     const firstName = currentUser ? currentUser.first_name : "User";
     const userEmail = currentUser ? currentUser.email : "";
