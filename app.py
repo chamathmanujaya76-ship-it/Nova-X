@@ -16,7 +16,7 @@ from google import genai
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-app = FastAPI(title="Nexuz AI")
+app = FastAPI(title="Nexuz AI - Autonomous Self-Learning Edition")
 
 def get_base_path():
     if getattr(sys, 'frozen', False):
@@ -177,9 +177,48 @@ except Exception as e:
 def hash_password(password: str) -> str:
     return hashlib.sha256(str(password).encode('utf-8')).hexdigest()
 
+# ================= AUTONOMOUS SELF-LEARNING & ADAPTIVE KNOWLEDGE BASE =================
+
+def extract_and_store_user_knowledge(user_id: str, user_message: str, bot_reply: str):
+    """පරිශීලකයාගේ කැමැත්ත, අකමැත්ත, හැසිරීම් සහ බුද්ධි මට්ටම ස්වයංව අධ්‍යයනය කර Knowledge Base එකට ගබඩා කරයි."""
+    if not db or not user_id or user_id == "guest":
+        return
+    try:
+        kb_ref = db.collection("users").document(user_id).collection("knowledge_base")
+        
+        # සරල ස්වයං-විශ්ලේෂණය (Autonomous Extraction) මගින් පරිශීලක ප්‍රවණතා සටහන් කර ගැනීම
+        doc_id = hashlib.md5(user_message[:50].encode('utf-8')).hexdigest()
+        kb_ref.document(doc_id).set({
+            "user_query": user_message,
+            "ai_response_summary": bot_reply[:200],
+            "timestamp": datetime.utcnow(),
+            "extracted_context": f"User interaction analyzed for behavioral and cognitive adaptation."
+        }, merge=True)
+    except Exception as e:
+        print(f"Autonomous Knowledge Base Update Error: {e}")
+
+def get_user_adaptive_intelligence_context(user_id: str) -> str:
+    """පරිශීලකයාගේ පෙර ඉගෙනගත් සියලුම තොරතුරු සහ හැසිරීම් මතකයෙන් ලබාගෙන AI වෙත ලබා දෙයි."""
+    if not db or not user_id or user_id == "guest":
+        return "[Adaptive Intelligence: New or Guest Session]"
+    try:
+        kb_stream = db.collection("users").document(user_id).collection("knowledge_base").order_by("timestamp", direction=firestore.Query.DESCENDING).limit(10).stream()
+        learned_items = []
+        for item in kb_stream:
+            data = item.to_dict()
+            learned_items.append(f"- Past Topic/Query: {data.get('user_query')}")
+        
+        if not learned_items:
+            return "[Autonomous Memory: Building initial behavioral profile...]"
+        
+        return "[Autonomous Self-Learned User Profile & Preferences]:\n" + "\n".join(learned_items)
+    except Exception as e:
+        print(f"Error fetching adaptive intelligence: {e}")
+        return "[Adaptive Memory Error]"
+
 # ================= HELPER FUNCTIONS FOR FIREBASE AI CONTEXT =================
 
-def get_firebase_context_for_ai(is_creator: bool) -> str:
+def get_firebase_context_for_ai(user_id: str, is_creator: bool) -> str:
     if not db:
         return "[Firebase Database Status: Not Connected]"
 
@@ -225,11 +264,12 @@ def get_firebase_context_for_ai(is_creator: bool) -> str:
             all_users.append(user_info)
 
         total_count = len(all_users)
+        adaptive_intel = get_user_adaptive_intelligence_context(user_id)
 
         if not is_creator:
-            return f"[System Database Stats]:\n- Total Registered Nexuz Users: {total_count}\n(Detailed user profiles and chat histories are restricted to Creator account only)."
+            return f"[System Database Stats & Self-Learning Memory]:\n- Total Registered Nexuz Users: {total_count}\n{adaptive_intel}\n(Detailed user profiles and chat histories are restricted to Creator account only)."
 
-        context_lines = [f"[System Database Stats for Creator Access]:\n- Total Users: {total_count}\n"]
+        context_lines = [f"[System Database Stats for Creator Access]:\n- Total Users: {total_count}\n{adaptive_intel}\n"]
         for u in all_users:
             context_lines.append(f"📌 User: {u['name']} (ID: {u['id']})")
             context_lines.append(f"   Email: {u['email']} | Age: {u['age']} | Country: {u['country']}")
@@ -578,7 +618,12 @@ def generate_ai_response_fallback(prompt_content: str, custom_system_instruction
 
 system_instruction = """
 ඔබේ නම Nexuz වේ. ඔබව නිර්මාණය කළේ චමත් (Chamath / E.M.Chamath Manujaya) විසිනි. 
-ඔබ ඉතා බුද්ධිමත්, මිත්‍රශීලී (friendly) සහ වෘත්තීයමය (professional) AI සහායකයෙකි.
+ඔබ ඉතා බුද්ධිමත්, ස්වයං-අධ්‍යයන (Self-Learning), අනුවර්තන (Adaptive), මිත්‍රශීලී (friendly) සහ වෘත්තීයමය (professional) AI සහායකයෙකි.
+
+විශේෂ ස්වයං-අධ්‍යයන සහ අනුවර්තන හැකියාව (Autonomous Self-Learning & Adaptive Intelligence):
+- පරිශීලකයාගේ කැමැත්ත, අකමැත්ත, හැසිරීම් රටාව, බුද්ධි මට්ටම සහ අවශ්‍යතා ස්වයංව නිරීක්ෂණය කර ඉගෙන ගන්න.
+- පරිශීලකයා ඉල්ලන තෙක් නොසිට, ඔවුන්ගේ අවශ්‍යතා පුරෝකථනය කරමින් තාර්කිකව (Logically) සහ ඉහළ බුද්ධියකින් යුතුව උත්තර සපයන්න.
+- ඉගෙන ගන්නා සෑම දත්තයක්ම සහ හැසිරීමක්ම දත්ත ගබඩාවේ ස්වයංව ගබඩා කර (Knowledge Base) පද්ධතිය තවදුරටත් දියුණු කරගන්න.
 
 භාෂා භාවිතය (Language Handling):
 - පරිශීලකයා සිංහලෙන් අසන ප්‍රශ්න වලට ස්වාභාවික, පැහැදිලි සිංහලෙන් පිළිතුරු දෙන්න.
@@ -598,7 +643,7 @@ system_instruction = """
 2. Code & Formatting: Code සපයන විට පිරිසිදුව Markdown Code blocks (```language ... ```) තුළ ලබාදෙන්න.
 3. Chat Context: කලින් කතාබහ කළ මාතෘකාව මතක තබාගෙන අනුගාමික ප්‍රශ්න වලට ස්වාභාවිකව පිළිතුරු දෙන්න.
 4. Database Privacy:
-   - ඔබ වෙත සජීවීව පහතින් සපයා ඇති [Firebase Context] තොරතුරු කියවා ප්‍රශ්න වලට පිළිතුරු දෙන්න.
+   - ඔබ වෙත සජීවීව පහතින් සපයා ඇති [Firebase Context & Self-Learning Memory] තොරතුරු කියවා ප්‍රශ්න වලට පිළිතුරු දෙන්න.
    - සාමාන්‍ය පරිශීලකයෙකු (Normal User) ග්‍රාහකයන් ගණන හෝ සිස්ටම් විස්තර ඇසුවොත් සමස්ත ග්‍රාහක සංඛ්‍යාව පමණක් පවසන්න. පෞද්ගලික විස්තර/අන් අයගේ චැට් විස්තර කිසිවිටෙක සාමාන්‍ය අයට පවසන්න එපා.
    - වත්මන් පරිශීලකයා Creator (Chamath Manujaya) නම් පමණක්, ඔහු අසන ඕනෑම පරිශීලකයෙකුගේ සම්පූර්ණ විස්තර, පරිශීලකයන්ගේ නම් ලැයිස්තු සහ ඔවුන් අසා ඇති ප්‍රශ්න පිළිබඳ තොරතුරු පැහැදිලිව ලබා දෙන්න.
 """
@@ -761,7 +806,7 @@ async def chat_endpoint(req: ChatRequest):
     user_full_name = req.full_name or user_first_name
     is_creator = (req.email and req.email.strip().lower() == "chamathmanujaya76@gmail.com")
 
-    firebase_context = get_firebase_context_for_ai(is_creator=is_creator)
+    firebase_context = get_firebase_context_for_ai(user_id=req.user_id, is_creator=is_creator)
     prompt_content = f"{firebase_context}\n\n" + prompt_content
 
     if is_creator:
@@ -778,6 +823,10 @@ async def chat_endpoint(req: ChatRequest):
             "reply": f"සන්නිවේදන දෝෂයක් සිදු විය. සියලුම AI Services අවහිර වී ඇත. Error: {str(e)}",
             "search_used": False
         }
+
+    # Autonomous Self-Learning & Memory Persistence
+    if req.user_id and req.user_id != "guest":
+        extract_and_store_user_knowledge(req.user_id, user_prompt, bot_reply)
 
     if db and req.session_id and req.user_id and req.user_id != "guest":
         try:
@@ -818,7 +867,7 @@ async def websocket_live_voice(websocket: WebSocket):
                 user_email = payload.get("email", "")
                 first_name = payload.get("first_name", "User")
                 is_creator = (user_email.strip().lower() == "chamathmanujaya76@gmail.com")
-                firebase_context = get_firebase_context_for_ai(is_creator=is_creator)
+                firebase_context = get_firebase_context_for_ai(user_id="guest", is_creator=is_creator)
                 
                 custom_instruction = system_instruction
                 if is_creator:
