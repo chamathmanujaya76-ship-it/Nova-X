@@ -317,7 +317,6 @@ body {
     transform: rotate(45deg);
 }
 
-/* Main Workspace Container - Fixed bottom clipping */
 .main-container {
     flex: 1;
     height: 100dvh;
@@ -851,7 +850,6 @@ body {
     font-weight: 700;
 }
 
-/* User Account Modals */
 .auth-modal-overlay {
     position: fixed;
     top: 0;

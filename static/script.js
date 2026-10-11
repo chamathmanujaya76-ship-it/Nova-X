@@ -851,51 +851,25 @@ function initThreeGlowVisualizer() {
 }
 
 async function initAudioVisualizer() {
+    // Mobile වල මයික්‍රෆෝන් ගැටුම් (Mic Conflict / getUserMedia error) වළක්වා ගැනීමට 
+    // SpeechRecognition එකට බාධාවකින් තොරව මයික් එක පාවිච්චි කිරීමට ඉඩ සලසමින්
+    // Three.js 3D Visualizer එක සාර්ථකව ආරම්භ කර ඇනිමේට් කරමු.
     try {
-        micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 128;
-
-        const source = audioCtx.createMediaStreamSource(micStream);
-        source.connect(analyser);
-
         initThreeGlowVisualizer();
         visualizeAudio();
     } catch (e) {
         console.log("Audio visualizer init error:", e);
-        initThreeGlowVisualizer();
-        visualizeAudio();
     }
 }
 
 function visualizeAudio() {
     if (!isLiveVoiceActive) return;
 
-    let averageFrequency = 0;
-    const dataArray = new Uint8Array(analyser ? analyser.frequencyBinCount : 0);
+    aiVoiceWaveTime += 0.05;
 
-    if (analyser) {
-        analyser.getByteFrequencyData(dataArray);
-        let sum = 0;
-        for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-        averageFrequency = sum / (dataArray.length || 1);
-    }
-
-    if (averageFrequency > 22) { 
-        isUserSpeaking = true;
-        if (isAiSpeaking) {
-            if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-            isAiSpeaking = false;
-            const st = document.getElementById("liveVoiceStatus");
-            if (st) st.innerText = "සවන්දෙමින් පවතී... (Interrupted)";
-        }
-    } else {
+    if (isAiSpeaking) {
         isUserSpeaking = false;
     }
-
-    aiVoiceWaveTime += 0.05;
-    const freqLen = dataArray.length || 1;
 
     if (particleSystem) {
         const positions = particleSystem.geometry.attributes.position.array;
@@ -904,12 +878,8 @@ function visualizeAudio() {
             const ox = originalPositions[idx];
             const oy = originalPositions[idx + 1];
             const angle = Math.atan2(oy, ox);
-            const freqIndex = Math.floor(((angle + Math.PI) / (Math.PI * 2)) * freqLen) % freqLen;
             
-            let audioFactor = (dataArray[freqIndex] || 0) / 255;
-            if (isAiSpeaking) {
-                audioFactor = Math.abs(Math.sin(aiVoiceWaveTime * 3 + angle * 4)) * 0.85 + 0.15;
-            }
+            let audioFactor = isAiSpeaking ? Math.abs(Math.sin(aiVoiceWaveTime * 3 + angle * 4)) * 0.85 + 0.15 : 0.25;
 
             const wavePulse = Math.sin(angle * 6 + aiVoiceWaveTime * 4) * (audioFactor * 35);
             const radialMultiplier = 1 + (audioFactor * 0.35) + (wavePulse / 180);
@@ -927,12 +897,8 @@ function visualizeAudio() {
         const ringCount = ringPos.length / 3;
         for (let i = 0; i < ringCount; i++) {
             const angle = (i / ringCount) * Math.PI * 2;
-            const freqIndex = Math.floor((i / ringCount) * freqLen) % freqLen;
             
-            let audioFactor = (dataArray[freqIndex] || 0) / 255;
-            if (isAiSpeaking) {
-                audioFactor = Math.abs(Math.sin(aiVoiceWaveTime * 4 + angle * 5)) * 0.9 + 0.1;
-            }
+            let audioFactor = isAiSpeaking ? Math.abs(Math.sin(aiVoiceWaveTime * 4 + angle * 5)) * 0.9 + 0.1 : 0.25;
 
             const waveDisplace = Math.sin(angle * 8 + aiVoiceWaveTime * 5) * (audioFactor * 28);
             const radius = 105 + waveDisplace;
@@ -1083,7 +1049,7 @@ function startLiveListening() {
                 try { recognition.stop(); } catch(err){}
                 processLiveVoiceInput(text);
             }
-        }, 600);
+        }, 800);
 
         if (e.results[0].isFinal) {
             if (silenceTimer) clearTimeout(silenceTimer);
@@ -1094,7 +1060,7 @@ function startLiveListening() {
 
     recognition.onerror = (e) => {
         if (isLiveVoiceActive && !isAiSpeaking) {
-            setTimeout(startLiveListening, 800);
+            setTimeout(startLiveListening, 1000);
         }
     };
 
