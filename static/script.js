@@ -10,6 +10,7 @@ let activeSessionId = null;
 let liveSocket = null;
 let silenceTimer = null;
 let isUserSpeaking = false;
+let isRecognitionRunning = false;
 
 let audioCtx = null;
 let analyser = null;
@@ -916,6 +917,7 @@ function visualizeAudio() {
 
 function openLiveVoiceMode() {
     isLiveVoiceActive = true;
+    isRecognitionRunning = false;
     document.getElementById("liveVoiceOverlay").classList.add("active");
 
     const firstName = currentUser ? currentUser.first_name : "User";
@@ -928,7 +930,9 @@ function openLiveVoiceMode() {
     initAudioVisualizer();
     
     speakText(greetingText, () => {
-        if (isLiveVoiceActive) startLiveListening();
+        if (isLiveVoiceActive) {
+            setTimeout(startLiveListening, 600);
+        }
     });
 }
 
@@ -951,7 +955,9 @@ function connectLiveWebSocket() {
                 if (statusText) statusText.innerText = reply;
                 
                 speakText(reply, () => {
-                    if (isLiveVoiceActive) startLiveListening();
+                    if (isLiveVoiceActive) {
+                        setTimeout(startLiveListening, 800);
+                    }
                 });
             }
         };
@@ -967,13 +973,15 @@ function connectLiveWebSocket() {
 function closeLiveVoiceMode() {
     isLiveVoiceActive = false;
     isAiSpeaking = false;
+    isRecognitionRunning = false;
     if (recognition) {
         try { 
             recognition.onresult = null;
             recognition.onerror = null;
             recognition.onend = null;
-            recognition.stop(); 
+            recognition.abort(); 
         } catch(e){}
+        recognition = null;
     }
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     if (micStream) micStream.getTracks().forEach(t => t.stop());
@@ -987,9 +995,20 @@ function speakText(text, onCompleteCallback = null) {
     if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         
+        if (recognition) {
+            try {
+                recognition.onresult = null;
+                recognition.onerror = null;
+                recognition.onend = null;
+                recognition.abort();
+            } catch(e){}
+            recognition = null;
+        }
+        isRecognitionRunning = false;
+        
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.rate = 1.0;
-        utterance.lang = "si-LK"; // Sinhala voice synthesis support
+        utterance.lang = "si-LK";
 
         utterance.onstart = () => { isAiSpeaking = true; };
         utterance.onend = () => { 
@@ -1023,7 +1042,7 @@ function speakText(text, onCompleteCallback = null) {
 }
 
 function startLiveListening() {
-    if (!isLiveVoiceActive || !SpeechRecognition || isAiSpeaking) return;
+    if (!isLiveVoiceActive || !SpeechRecognition || isAiSpeaking || isRecognitionRunning) return;
 
     const statusText = document.getElementById("liveVoiceStatus");
     const transcriptText = document.getElementById("liveTranscript");
@@ -1035,11 +1054,13 @@ function startLiveListening() {
             recognition.onresult = null;
             recognition.onerror = null;
             recognition.onend = null;
-            recognition.stop(); 
+            recognition.abort(); 
         } catch(e){}
+        recognition = null;
     }
 
     try {
+        isRecognitionRunning = true;
         recognition = new SpeechRecognition();
         recognition.lang = "si-LK";
         recognition.interimResults = true;
@@ -1056,22 +1077,31 @@ function startLiveListening() {
 
             if (silenceTimer) clearTimeout(silenceTimer);
             silenceTimer = setTimeout(() => {
-                if (text.trim().length > 0 && isLiveVoiceActive) {
-                    try { recognition.stop(); } catch(err){}
+                if (text.trim().length > 0 && isLiveVoiceActive && isRecognitionRunning) {
+                    isRecognitionRunning = false;
+                    try { recognition.abort(); } catch(err){}
+                    recognition = null;
                     processLiveVoiceInput(text);
                 }
-            }, 800);
+            }, 1000);
 
             if (e.results[0].isFinal) {
                 if (silenceTimer) clearTimeout(silenceTimer);
-                try { recognition.stop(); } catch(err){}
+                isRecognitionRunning = false;
+                try { recognition.abort(); } catch(err){}
+                recognition = null;
                 processLiveVoiceInput(text);
             }
         };
 
         recognition.onerror = (e) => {
             console.log("Speech recognition error:", e.error);
-            if (isLiveVoiceActive && !isAiSpeaking && e.error !== 'not-allowed') {
+            isRecognitionRunning = false;
+            if (recognition) {
+                try { recognition.abort(); } catch(err){}
+                recognition = null;
+            }
+            if (isLiveVoiceActive && !isAiSpeaking && e.error !== 'not-allowed' && e.error !== 'aborted') {
                 setTimeout(startLiveListening, 1500);
             } else if (e.error === 'not-allowed') {
                 if (statusText) statusText.innerText = "මයික්‍රෆෝන අවසරය ලබා දෙන්න.";
@@ -1079,12 +1109,16 @@ function startLiveListening() {
         };
 
         recognition.onend = () => {
+            isRecognitionRunning = false;
+            recognition = null;
             if (isLiveVoiceActive && !isAiSpeaking && transcriptText && !transcriptText.innerText.trim()) {
-                setTimeout(startLiveListening, 800);
+                setTimeout(startLiveListening, 1000);
             }
         };
     } catch (err) {
         console.log("Speech recognition start error:", err);
+        isRecognitionRunning = false;
+        recognition = null;
         if (isLiveVoiceActive && !isAiSpeaking) {
             setTimeout(startLiveListening, 2000);
         }
@@ -1093,7 +1127,7 @@ function startLiveListening() {
 
 async function processLiveVoiceInput(userText) {
     if (!userText || !userText.trim()) {
-        if (isLiveVoiceActive) startLiveListening();
+        if (isLiveVoiceActive) setTimeout(startLiveListening, 500);
         return;
     }
 
@@ -1134,7 +1168,9 @@ async function processLiveVoiceInput(userText) {
 
             if (statusText) statusText.innerText = reply;
             speakText(reply, () => {
-                if (isLiveVoiceActive) startLiveListening();
+                if (isLiveVoiceActive) {
+                    setTimeout(startLiveListening, 800);
+                }
             });
 
         } catch (err) {
@@ -1148,8 +1184,15 @@ function toggleLiveMic() {
     const btn = document.getElementById("liveMicToggle");
     if (btn && btn.classList.contains("active")) {
         btn.classList.remove("active");
+        isRecognitionRunning = false;
         if (recognition) {
-            try { recognition.stop(); } catch(e){}
+            try { 
+                recognition.onresult = null;
+                recognition.onerror = null;
+                recognition.onend = null;
+                recognition.abort(); 
+            } catch(e){}
+            recognition = null;
         }
         document.getElementById("liveVoiceStatus").innerText = "Mic අක්‍රියයි";
     } else if (btn) {
