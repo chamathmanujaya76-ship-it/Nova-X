@@ -851,9 +851,6 @@ function initThreeGlowVisualizer() {
 }
 
 async function initAudioVisualizer() {
-    // Mobile වල මයික්‍රෆෝන් ගැටුම් (Mic Conflict / getUserMedia error) වළක්වා ගැනීමට 
-    // SpeechRecognition එකට බාධාවකින් තොරව මයික් එක පාවිච්චි කිරීමට ඉඩ සලසමින්
-    // Three.js 3D Visualizer එක සාර්ථකව ආරම්භ කර ඇනිමේට් කරමු.
     try {
         initThreeGlowVisualizer();
         visualizeAudio();
@@ -922,7 +919,7 @@ function openLiveVoiceMode() {
     document.getElementById("liveVoiceOverlay").classList.add("active");
 
     const firstName = currentUser ? currentUser.first_name : "User";
-    const greetingText = `Hi ${firstName}, what shall we do today?`;
+    const greetingText = `ආයුබෝවන් ${firstName}, අද මම ඔබට උදව් කළ යුත්තේ කෙසේද?`;
 
     const statusText = document.getElementById("liveVoiceStatus");
     if (statusText) statusText.innerText = greetingText;
@@ -971,7 +968,12 @@ function closeLiveVoiceMode() {
     isLiveVoiceActive = false;
     isAiSpeaking = false;
     if (recognition) {
-        try { recognition.stop(); } catch(e){}
+        try { 
+            recognition.onresult = null;
+            recognition.onerror = null;
+            recognition.onend = null;
+            recognition.stop(); 
+        } catch(e){}
     }
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
     if (micStream) micStream.getTracks().forEach(t => t.stop());
@@ -987,6 +989,7 @@ function speakText(text, onCompleteCallback = null) {
         
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.rate = 1.0;
+        utterance.lang = "si-LK"; // Sinhala voice synthesis support
 
         utterance.onstart = () => { isAiSpeaking = true; };
         utterance.onend = () => { 
@@ -1002,11 +1005,13 @@ function speakText(text, onCompleteCallback = null) {
         const voices = window.speechSynthesis.getVoices();
 
         if (voices.length > 0) {
-            let matchedVoice = null;
-            if (selectedGender === "female") {
-                matchedVoice = voices.find(v => v.name.includes("Female") || v.name.includes("Zira") || v.name.includes("Google UK English Female") || v.name.includes("Samantha") || v.name.includes("Victoria") || v.name.includes("Karen"));
-            } else {
-                matchedVoice = voices.find(v => v.name.includes("Male") || v.name.includes("David") || v.name.includes("Google UK English Male") || v.name.includes("Alex") || v.name.includes("George"));
+            let matchedVoice = voices.find(v => v.lang && v.lang.toLowerCase().includes("si")) || null;
+            if (!matchedVoice) {
+                if (selectedGender === "female") {
+                    matchedVoice = voices.find(v => v.name.includes("Female") || v.name.includes("Zira") || v.name.includes("Google UK English Female") || v.name.includes("Samantha") || v.name.includes("Victoria") || v.name.includes("Karen"));
+                } else {
+                    matchedVoice = voices.find(v => v.name.includes("Male") || v.name.includes("David") || v.name.includes("Google UK English Male") || v.name.includes("Alex") || v.name.includes("George"));
+                }
             }
             if (matchedVoice) utterance.voice = matchedVoice;
         }
@@ -1026,49 +1031,64 @@ function startLiveListening() {
     if (statusText) statusText.innerText = "සවන්දෙමින් පවතී... කතා කරන්න...";
 
     if (recognition) {
-        try { recognition.stop(); } catch(e){}
+        try { 
+            recognition.onresult = null;
+            recognition.onerror = null;
+            recognition.onend = null;
+            recognition.stop(); 
+        } catch(e){}
     }
 
-    recognition = new SpeechRecognition();
-    recognition.lang = "si-LK";
-    recognition.interimResults = true;
-    recognition.continuous = false;
+    try {
+        recognition = new SpeechRecognition();
+        recognition.lang = "si-LK";
+        recognition.interimResults = true;
+        recognition.continuous = false;
 
-    recognition.start();
+        recognition.start();
 
-    recognition.onresult = (e) => {
-        let text = "";
-        for (let i = e.resultIndex; i < e.results.length; i++) {
-            text += e.results[i][0].transcript;
-        }
-        if (transcriptText) transcriptText.innerText = text;
+        recognition.onresult = (e) => {
+            let text = "";
+            for (let i = e.resultIndex; i < e.results.length; i++) {
+                text += e.results[i][0].transcript;
+            }
+            if (transcriptText) transcriptText.innerText = text;
 
-        if (silenceTimer) clearTimeout(silenceTimer);
-        silenceTimer = setTimeout(() => {
-            if (text.trim().length > 0 && isLiveVoiceActive) {
+            if (silenceTimer) clearTimeout(silenceTimer);
+            silenceTimer = setTimeout(() => {
+                if (text.trim().length > 0 && isLiveVoiceActive) {
+                    try { recognition.stop(); } catch(err){}
+                    processLiveVoiceInput(text);
+                }
+            }, 800);
+
+            if (e.results[0].isFinal) {
+                if (silenceTimer) clearTimeout(silenceTimer);
                 try { recognition.stop(); } catch(err){}
                 processLiveVoiceInput(text);
             }
-        }, 800);
+        };
 
-        if (e.results[0].isFinal) {
-            if (silenceTimer) clearTimeout(silenceTimer);
-            try { recognition.stop(); } catch(err){}
-            processLiveVoiceInput(text);
-        }
-    };
+        recognition.onerror = (e) => {
+            console.log("Speech recognition error:", e.error);
+            if (isLiveVoiceActive && !isAiSpeaking && e.error !== 'not-allowed') {
+                setTimeout(startLiveListening, 1500);
+            } else if (e.error === 'not-allowed') {
+                if (statusText) statusText.innerText = "මයික්‍රෆෝන අවසරය ලබා දෙන්න.";
+            }
+        };
 
-    recognition.onerror = (e) => {
+        recognition.onend = () => {
+            if (isLiveVoiceActive && !isAiSpeaking && transcriptText && !transcriptText.innerText.trim()) {
+                setTimeout(startLiveListening, 800);
+            }
+        };
+    } catch (err) {
+        console.log("Speech recognition start error:", err);
         if (isLiveVoiceActive && !isAiSpeaking) {
-            setTimeout(startLiveListening, 1000);
+            setTimeout(startLiveListening, 2000);
         }
-    };
-
-    recognition.onend = () => {
-        if (isLiveVoiceActive && !isAiSpeaking && transcriptText && !transcriptText.innerText.trim()) {
-            setTimeout(startLiveListening, 500);
-        }
-    };
+    }
 }
 
 async function processLiveVoiceInput(userText) {
@@ -1128,7 +1148,9 @@ function toggleLiveMic() {
     const btn = document.getElementById("liveMicToggle");
     if (btn && btn.classList.contains("active")) {
         btn.classList.remove("active");
-        if (recognition) recognition.stop();
+        if (recognition) {
+            try { recognition.stop(); } catch(e){}
+        }
         document.getElementById("liveVoiceStatus").innerText = "Mic අක්‍රියයි";
     } else if (btn) {
         btn.classList.add("active");
