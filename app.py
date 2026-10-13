@@ -186,7 +186,6 @@ def extract_and_store_user_knowledge(user_id: str, user_message: str, bot_reply:
     try:
         kb_ref = db.collection("users").document(user_id).collection("knowledge_base")
         
-        # සරල ස්වයං-විශ්ලේෂණය (Autonomous Extraction) මගින් පරිශීලක ප්‍රවණතා සටහන් කර ගැනීම
         doc_id = hashlib.md5(user_message[:50].encode('utf-8')).hexdigest()
         kb_ref.document(doc_id).set({
             "user_query": user_message,
@@ -824,7 +823,6 @@ async def chat_endpoint(req: ChatRequest):
             "search_used": False
         }
 
-    # Autonomous Self-Learning & Memory Persistence
     if req.user_id and req.user_id != "guest":
         extract_and_store_user_knowledge(req.user_id, user_prompt, bot_reply)
 
@@ -850,8 +848,6 @@ async def chat_endpoint(req: ChatRequest):
         "search_used": bool(search_context),
         "provider": active_provider
     }
-
-# ================= WEBSOCKET REAL-TIME LIVE VOICE ENDPOINT =================
 
 @app.websocket("/ws/live")
 async def websocket_live_voice(websocket: WebSocket):
