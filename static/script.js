@@ -991,6 +991,20 @@ function closeLiveVoiceMode() {
     document.getElementById("liveVoiceOverlay").classList.remove("active");
 }
 
+// 🛑 MARKDOWN CLEANING HELPER FOR TTS (ગැටලුව 01 විසඳුම)
+function cleanTextForSpeech(text) {
+    if (!text) return "";
+    return text
+        .replace(/```([a-zA-Z0-9_+-]*)\n([\s\S]*?)```/g, ' කේතයක් සපයා ඇත. ')
+        .replace(/`([^`]+)`/g, '$1')
+        .replace(/\*\*(.*?)\*\*/g, '$1')
+        .replace(/\*(.*?)\*/g, '$1')
+        .replace(/#+/g, '')
+        .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
+        .replace(/[#_*`~>-]/g, ' ')
+        .trim();
+}
+
 function speakText(text, onCompleteCallback = null) {
     if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
@@ -1006,7 +1020,8 @@ function speakText(text, onCompleteCallback = null) {
         }
         isRecognitionRunning = false;
         
-        const utterance = new SpeechSynthesisUtterance(text);
+        const cleanedText = cleanTextForSpeech(text);
+        const utterance = new SpeechSynthesisUtterance(cleanedText);
         utterance.rate = 1.0;
         utterance.lang = "si-LK";
 
@@ -1042,7 +1057,13 @@ function speakText(text, onCompleteCallback = null) {
 }
 
 function startLiveListening() {
-    if (!isLiveVoiceActive || !SpeechRecognition || isAiSpeaking || isRecognitionRunning) return;
+    if (!isLiveVoiceActive || !SpeechRecognition || isRecognitionRunning) return;
+
+    // 🛑 INTERRUPT HANDLING (గැටලුව 04 විසඳුම): User කතා කිරීමට පටන් ගත් සැනින් AI කතා කිරීම නතර කරයි
+    if ('speechSynthesis' in window && window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel();
+        isAiSpeaking = false;
+    }
 
     const statusText = document.getElementById("liveVoiceStatus");
     const transcriptText = document.getElementById("liveTranscript");
