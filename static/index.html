@@ -130,6 +130,11 @@
                         <i class="fa-solid fa-bell"></i> <span>Notifications</span>
                     </button>
 
+                    <!-- CREATOR EXCLUSIVE CONTROL TAB -->
+                    <button class="nav-tab-btn" id="creatorControlTabBtn" onclick="switchSettingsTab('creator-control', this); fetchCreatorMetrics();" style="display: none; border: 1px solid #FFD700; color: #FFD700;">
+                        <i class="fa-solid fa-gauge-high"></i> <span>Creator Control & Metrics</span>
+                    </button>
+
                     <button class="nav-tab-btn" onclick="switchSettingsTab('about', this)">
                         <i class="fa-solid fa-circle-info"></i> <span>About Nexuz</span>
                     </button>
@@ -225,6 +230,49 @@
                                 <input type="checkbox" id="notificationToggle" checked>
                                 <span class="slider round"></span>
                             </label>
+                        </div>
+                    </div>
+
+                    <!-- CREATOR CONTROL & DIAGNOSTICS TAB CONTENT -->
+                    <div class="tab-content" id="tab-creator-control" style="display: none;">
+                        <div style="display: flex; flex-direction: column; gap: 14px;">
+                            <h3 style="color: #FFD700; font-size: 16px;"><i class="fa-solid fa-shield-halved"></i> Creator Dashboard & System Diagnostics</h3>
+                            <p style="font-size: 12px; color: #aaa;">මෙම පුවරුව හරහා පද්ධතියේ API භාවිතය, ප්‍රතිචාර වේගයන්, ලොග්ස් සහ ස්වයං-නිවැරදි කිරීම් පාලනය කළ හැක.</p>
+                            
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                                <div style="background: #0b0516; border: 1px solid #7B00FF; border-radius: 12px; padding: 12px;">
+                                    <strong style="font-size: 12px; color: #a855f7;"><i class="fa-solid fa-bolt"></i> Estimated Tokens Used</strong>
+                                    <div id="statTokenCount" style="font-size: 20px; font-weight: 700; color: #fff; margin-top: 4px;">0</div>
+                                </div>
+                                <div style="background: #0b0516; border: 1px solid #7B00FF; border-radius: 12px; padding: 12px;">
+                                    <strong style="font-size: 12px; color: #a855f7;"><i class="fa-solid fa-triangle-exclamation"></i> Total System Errors</strong>
+                                    <div id="statErrorCount" style="font-size: 20px; font-weight: 700; color: #ff4d4d; margin-top: 4px;">0</div>
+                                </div>
+                            </div>
+
+                            <div>
+                                <h4 style="color: #fff; font-size: 13px; margin-bottom: 6px;">API Key Usage Frequency</h4>
+                                <div id="apiKeyUsageList" style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; background: #000; padding: 10px; border-radius: 10px; border: 1px solid rgba(123,0,255,0.3);">
+                                    Loading API metrics...
+                                </div>
+                            </div>
+
+                            <div>
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                    <h4 style="color: #fff; font-size: 13px;">Live System Errors & Auto-Debugging</h4>
+                                    <button onclick="runAutoDebugCheck()" style="background: #7B00FF; color: #fff; border: none; padding: 4px 10px; border-radius: 6px; font-size: 11px; cursor: pointer;">
+                                        <i class="fa-solid fa-wand-magic-sparkles"></i> AI Auto-Fix
+                                    </button>
+                                </div>
+                                <div id="systemErrorsLogBox" style="max-height: 140px; overflow-y: auto; background: #000; border: 1px solid #ef4444; border-radius: 10px; padding: 8px; font-family: monospace; font-size: 11px; color: #f87171;">
+                                    No errors logged.
+                                </div>
+                            </div>
+
+                            <div id="autoDebugResultContainer" style="display: none; background: #06030E; border: 1px solid #00ff88; border-radius: 10px; padding: 10px; font-size: 12px; color: #00ff88;">
+                                <strong>AI Auto-Debug Suggestion:</strong>
+                                <div id="autoDebugText" style="margin-top: 4px; color: #fff; font-family: monospace; white-space: pre-wrap;"></div>
+                            </div>
                         </div>
                     </div>
 

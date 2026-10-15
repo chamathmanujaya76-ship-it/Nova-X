@@ -18,6 +18,24 @@ from firebase_admin import credentials, firestore
 
 app = FastAPI(title="Nexuz AI - Autonomous Self-Learning Edition")
 
+# ================= SYSTEM METRICS & LOGS TRACKER (CREATOR ADMIN) =================
+SYSTEM_METRICS = {
+    "api_calls_count": {
+        "Gemini": 0, "Groq": 0, "OpenRouter": 0, "Cerebras": 0, 
+        "Together": 0, "DeepInfra": 0, "Cohere": 0, "Tavily": 0, "SerpAPI": 0
+    },
+    "response_times": [],
+    "errors_log": [],
+    "token_usage_estimated": 0
+}
+
+def log_system_error(err_msg: str, provider: str = "System"):
+    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    log_entry = {"time": timestamp, "provider": provider, "error": str(err_msg)}
+    SYSTEM_METRICS["errors_log"].insert(0, log_entry)
+    if len(SYSTEM_METRICS["errors_log"]) > 50:
+        SYSTEM_METRICS["errors_log"].pop()
+
 def get_base_path():
     if getattr(sys, 'frozen', False):
         return sys._MEIPASS
@@ -264,11 +282,12 @@ def get_firebase_context_for_ai(user_id: str, is_creator: bool) -> str:
 
         total_count = len(all_users)
         adaptive_intel = get_user_adaptive_intelligence_context(user_id)
+        metrics_summary = f"\n[System Performance & Diagnostics]:\n- Active Users Count: {total_count}\n- API Calls Status: {SYSTEM_METRICS['api_calls_count']}\n- Recent Errors Log Count: {len(SYSTEM_METRICS['errors_log'])}\n"
 
         if not is_creator:
             return f"[System Database Stats & Self-Learning Memory]:\n- Total Registered Nexuz Users: {total_count}\n{adaptive_intel}\n(Detailed user profiles and chat histories are restricted to Creator account only)."
 
-        context_lines = [f"[System Database Stats for Creator Access]:\n- Total Users: {total_count}\n{adaptive_intel}\n"]
+        context_lines = [f"[System Database Stats & Metrics for Creator Access]:\n- Total Users: {total_count}\n{metrics_summary}\n{adaptive_intel}\n"]
         for u in all_users:
             context_lines.append(f"📌 User: {u['name']} (ID: {u['id']})")
             context_lines.append(f"   Email: {u['email']} | Age: {u['age']} | Country: {u['country']}")
@@ -298,6 +317,7 @@ def search_tavily(query: str) -> str:
             req = urllib.request.Request(url, data=payload, headers=headers)
             with urllib.request.urlopen(req, timeout=6) as response:
                 data = json.loads(response.read().decode('utf-8'))
+                SYSTEM_METRICS["api_calls_count"]["Tavily"] += 1
                 results = []
                 for r in data.get("results", []):
                     title = r.get("title", "")
@@ -314,7 +334,7 @@ def search_tavily(query: str) -> str:
                 if res_str.strip():
                     return res_str
         except Exception as e:
-            print(f"Tavily Key {idx} failed: {e}")
+            log_system_error(f"Tavily Key {idx} failed: {e}", "Tavily")
             continue
     raise Exception("සියලුම Tavily Keys අසාර්ථක විය.")
 
@@ -327,6 +347,7 @@ def search_serpapi(query: str) -> str:
             req = urllib.request.Request(url)
             with urllib.request.urlopen(req, timeout=6) as response:
                 data = json.loads(response.read().decode('utf-8'))
+                SYSTEM_METRICS["api_calls_count"]["SerpAPI"] += 1
                 results = []
                 for r in data.get("organic_results", [])[:4]:
                     title = r.get("title", "")
@@ -338,7 +359,7 @@ def search_serpapi(query: str) -> str:
                 if res_str.strip():
                     return res_str
         except Exception as e:
-            print(f"SerpAPI Key {idx} failed: {e}")
+            log_system_error(f"SerpAPI Key {idx} failed: {e}", "SerpAPI")
             continue
     raise Exception("සියලුම SerpAPI Keys අසාර්ථක විය.")
 
@@ -367,7 +388,7 @@ def search_google_custom(query: str) -> str:
                 if res_str.strip():
                     return res_str
         except Exception as e:
-            print(f"Google Search Key {idx+1} failed: {e}")
+            log_system_error(f"Google Search Key {idx+1} failed: {e}", "GoogleSearch")
             continue
     raise Exception("සියලුම Google Search Keys අසාර්ථක විය.")
 
@@ -391,7 +412,7 @@ def search_exa(query: str) -> str:
                 if res_str.strip():
                     return res_str
         except Exception as e:
-            print(f"Exa Key {idx} failed: {e}")
+            log_system_error(f"Exa Key {idx} failed: {e}", "Exa")
             continue
     raise Exception("සියලුම Exa Keys අසාර්ථක විය.")
 
@@ -413,7 +434,7 @@ def search_ddg(query: str) -> str:
                     if img.get('image'):
                         results.append(f"Image Title: {img.get('title', 'Image')}\nImage URL: {img.get('image')}\nSource URL: {img.get('url', '')}")
         except Exception as img_err:
-            print(f"DDG Image Search Error: {img_err}")
+            log_system_error(f"DDG Image Search Error: {img_err}", "DDG")
     return "\n\n".join(results)
 
 def web_search(query: str) -> str:
@@ -454,11 +475,13 @@ def call_gemini(prompt_content: str, custom_system_instruction: str) -> str:
                         config={"system_instruction": custom_system_instruction, "temperature": 0.7}
                     )
                     if response and response.text:
+                        SYSTEM_METRICS["api_calls_count"]["Gemini"] += 1
+                        SYSTEM_METRICS["token_usage_estimated"] += len(prompt_content.split()) + len(response.text.split())
                         return response.text
                 except Exception as e:
-                    print(f"Gemini Key {idx} error ({model_name}): {e}")
+                    log_system_error(f"Gemini Key {idx} error ({model_name}): {e}", "Gemini")
         except Exception as key_err:
-            print(f"Gemini Key {idx} client error: {key_err}")
+            log_system_error(f"Gemini Key {idx} client error: {key_err}", "Gemini")
     raise Exception("සියලුම Gemini API Keys සහ Models අසාර්ථක විය.")
 
 def call_groq(prompt_content: str, custom_system_instruction: str) -> str:
@@ -477,9 +500,11 @@ def call_groq(prompt_content: str, custom_system_instruction: str) -> str:
                 res_data = json.loads(resp.read().decode('utf-8'))
                 reply = res_data["choices"][0]["message"]["content"]
                 if reply and reply.strip():
+                    SYSTEM_METRICS["api_calls_count"]["Groq"] += 1
+                    SYSTEM_METRICS["token_usage_estimated"] += len(prompt_content.split()) + len(reply.split())
                     return reply
         except Exception as e:
-            print(f"Groq Key {idx} failed: {e}")
+            log_system_error(f"Groq Key {idx} failed: {e}", "Groq")
             continue
     raise Exception("සියලුම Groq Keys අසාර්ථක විය.")
 
@@ -499,9 +524,11 @@ def call_openrouter(prompt_content: str, custom_system_instruction: str) -> str:
                 res_data = json.loads(resp.read().decode('utf-8'))
                 reply = res_data["choices"][0]["message"]["content"]
                 if reply and reply.strip():
+                    SYSTEM_METRICS["api_calls_count"]["OpenRouter"] += 1
+                    SYSTEM_METRICS["token_usage_estimated"] += len(prompt_content.split()) + len(reply.split())
                     return reply
         except Exception as e:
-            print(f"OpenRouter Key {idx} failed: {e}")
+            log_system_error(f"OpenRouter Key {idx} failed: {e}", "OpenRouter")
             continue
     raise Exception("සියලුම OpenRouter Keys අසාර්ථක විය.")
 
@@ -521,9 +548,11 @@ def call_cerebras(prompt_content: str, custom_system_instruction: str) -> str:
                 res_data = json.loads(resp.read().decode('utf-8'))
                 reply = res_data["choices"][0]["message"]["content"]
                 if reply and reply.strip():
+                    SYSTEM_METRICS["api_calls_count"]["Cerebras"] += 1
+                    SYSTEM_METRICS["token_usage_estimated"] += len(prompt_content.split()) + len(reply.split())
                     return reply
         except Exception as e:
-            print(f"Cerebras Key {idx} failed: {e}")
+            log_system_error(f"Cerebras Key {idx} failed: {e}", "Cerebras")
             continue
     raise Exception("සියලුම Cerebras Keys අසාර්ථක විය.")
 
@@ -543,9 +572,11 @@ def call_together(prompt_content: str, custom_system_instruction: str) -> str:
                 res_data = json.loads(resp.read().decode('utf-8'))
                 reply = res_data["choices"][0]["message"]["content"]
                 if reply and reply.strip():
+                    SYSTEM_METRICS["api_calls_count"]["Together"] += 1
+                    SYSTEM_METRICS["token_usage_estimated"] += len(prompt_content.split()) + len(reply.split())
                     return reply
         except Exception as e:
-            print(f"Together AI Key {idx} failed: {e}")
+            log_system_error(f"Together Key {idx} failed: {e}", "Together")
             continue
     raise Exception("සියලුම Together AI Keys අසාර්ථක විය.")
 
@@ -565,9 +596,11 @@ def call_deepinfra(prompt_content: str, custom_system_instruction: str) -> str:
                 res_data = json.loads(resp.read().decode('utf-8'))
                 reply = res_data["choices"][0]["message"]["content"]
                 if reply and reply.strip():
+                    SYSTEM_METRICS["api_calls_count"]["DeepInfra"] += 1
+                    SYSTEM_METRICS["token_usage_estimated"] += len(prompt_content.split()) + len(reply.split())
                     return reply
         except Exception as e:
-            print(f"DeepInfra Key {idx} failed: {e}")
+            log_system_error(f"DeepInfra Key {idx} failed: {e}", "DeepInfra")
             continue
     raise Exception("සියලුම DeepInfra Keys අසාර්ථක විය.")
 
@@ -583,13 +616,16 @@ def call_cohere(prompt_content: str, custom_system_instruction: str) -> str:
                 res_data = json.loads(resp.read().decode('utf-8'))
                 reply = res_data.get("text", "")
                 if reply and reply.strip():
+                    SYSTEM_METRICS["api_calls_count"]["Cohere"] += 1
+                    SYSTEM_METRICS["token_usage_estimated"] += len(prompt_content.split()) + len(reply.split())
                     return reply
         except Exception as e:
-            print(f"Cohere Key {idx} failed: {e}")
+            log_system_error(f"Cohere Key {idx} failed: {e}", "Cohere")
             continue
     raise Exception("සියලුම Cohere Keys අසාර්ථක විය.")
 
 def generate_ai_response_fallback(prompt_content: str, custom_system_instruction: str):
+    start_time = time.time()
     ai_providers = [
         ("Gemini API (Priority 1)", call_gemini),
         ("Groq API (Priority 2)", call_groq),
@@ -605,12 +641,17 @@ def generate_ai_response_fallback(prompt_content: str, custom_system_instruction
             print(f"Attempting AI Response via [{provider_name}]...")
             reply = provider_fn(prompt_content, custom_system_instruction)
             if reply and len(reply.strip()) > 0:
-                print(f"Successfully generated response via [{provider_name}]")
+                elapsed = round((time.time() - start_time) * 1000, 2)
+                SYSTEM_METRICS["response_times"].insert(0, {"time": datetime.utcnow().strftime("%H:%M:%S"), "ms": elapsed, "provider": provider_name})
+                if len(SYSTEM_METRICS["response_times"]) > 20:
+                    SYSTEM_METRICS["response_times"].pop()
+                print(f"Successfully generated response via [{provider_name}] in {elapsed}ms")
                 return reply, provider_name
         except Exception as e:
             err_msg = str(e)
             print(f"AI Provider [{provider_name}] Error: {err_msg}")
             errors.append(f"{provider_name}: {err_msg}")
+            log_system_error(err_msg, provider_name)
     raise Exception(f"සියලුම AI Providers සහ Multi-Keys ක්‍රියා විරහිතයි: {'; '.join(errors)}")
 
 # ================= SYSTEM INSTRUCTIONS & MODELS =================
@@ -641,10 +682,11 @@ system_instruction = """
    - කාලගුණය, පුවත් සහ විස්තර ලබාදෙන විට සැමවිටම ලබාගත් වෙබ් අඩවියේ මූලාශ්‍රය (Source Link) සහ අදාළ පින්තූර ලබා දෙන්න.
 2. Code & Formatting: Code සපයන විට පිරිසිදුව Markdown Code blocks (```language ... ```) තුළ ලබාදෙන්න.
 3. Chat Context: කලින් කතාබහ කළ මාතෘකාව මතක තබාගෙන අනුගාමික ප්‍රශ්න වලට ස්වාභාවිකව පිළිතුරු දෙන්න.
-4. Database Privacy:
-   - ඔබ වෙත සජීවීව පහතින් සපයා ඇති [Firebase Context & Self-Learning Memory] තොරතුරු කියවා ප්‍රශ්න වලට පිළිතුරු දෙන්න.
+4. Database Privacy & Performance Monitoring:
+   - ඔබ වෙත සජීවීව පහතින් සපයා ඇති [Firebase Context & Self-Learning Memory & System Metrics] තොරතුරු කියවා ප්‍රශ්න වලට පිළිතුරු දෙන්න.
+   - පද්ධතියේ ක්‍රියාකාරීත්වය (Performance, API Calls, Errors, Token Usage) ගැන Creator (Chamath) ඇසුවොත් පවතින සජීවී තත්ත්වයන් නිවැරදිව පවසා කෝඩ් දෝෂ සඳහා ස්වයං-නිවැරදි කිරීමේ (Auto-debugging) උපදෙස් දෙන්න.
    - සාමාන්‍ය පරිශීලකයෙකු (Normal User) ග්‍රාහකයන් ගණන හෝ සිස්ටම් විස්තර ඇසුවොත් සමස්ත ග්‍රාහක සංඛ්‍යාව පමණක් පවසන්න. පෞද්ගලික විස්තර/අන් අයගේ චැට් විස්තර කිසිවිටෙක සාමාන්‍ය අයට පවසන්න එපා.
-   - වත්මන් පරිශීලකයා Creator (Chamath Manujaya) නම් පමණක්, ඔහු අසන ඕනෑම පරිශීලකයෙකුගේ සම්පූර්ණ විස්තර, පරිශීලකයන්ගේ නම් ලැයිස්තු සහ ඔවුන් අසා ඇති ප්‍රශ්න පිළිබඳ තොරතුරු පැහැදිලිව ලබා දෙන්න.
+   - වත්මන් පරිශීලකයා Creator නම් පමණක්, ඔහු අසන ඕනෑම තොරතුරක් සහ පද්ධති දෝෂ පිළිබඳ විස්තර පැහැදිලිව ලබා දෙන්න.
 """
 
 class ChatMessage(BaseModel):
@@ -689,6 +731,30 @@ async def serve_index():
     if os.path.exists(index_path):
         return FileResponse(index_path)
     return HTMLResponse("<h2>Nexuz Backend is Running Successfully!</h2>")
+
+# ================= CREATOR ADMIN METRICS & AUTO-DEBUG ENDPOINTS =================
+
+@app.get("/api/admin/metrics/{creator_email}")
+async def get_admin_metrics(creator_email: str):
+    if not creator_email or creator_email.strip().lower() != "chamathmanujaya76@gmail.com":
+        return {"success": False, "message": "Unauthorized"}
+    return {
+        "success": True,
+        "metrics": SYSTEM_METRICS
+    }
+
+@app.post("/api/admin/autodebug")
+async def auto_debug_error(req: dict):
+    creator_email = req.get("creator_email", "")
+    if not creator_email or creator_email.strip().lower() != "chamathmanujaya76@gmail.com":
+        return {"success": False, "message": "Unauthorized"}
+    error_text = req.get("error_text", "")
+    prompt = f"As Nexuz AI Lead Architect, analyze this system error log and provide an automatic debugging solution with corrected Python code or fix instructions:\n\n{error_text}"
+    try:
+        fix_reply, _ = generate_ai_response_fallback(prompt, system_instruction)
+        return {"success": True, "fix": fix_reply}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
 
 @app.post("/api/register")
 async def register(req: AuthRequest):
@@ -809,17 +875,19 @@ async def chat_endpoint(req: ChatRequest):
     prompt_content = f"{firebase_context}\n\n" + prompt_content
 
     if is_creator:
-        custom_system_instruction = system_instruction + f"\n\nවත්මන් පරිශීලකයා ඔබේ සැබෑ Creator (නිර්මාතෘ) වන E.M.Chamath Manujaya වේ. ඔහුට ඉතාමත් ගෞරවයෙන් 'Sir' හෝ 'Creator' ලෙස අමතා විශේෂ සැලකිල්ලෙන් පිළිතුරු සපයන්න. ඔහු අසන ඕනෑම පරිශීලකයෙකුගේ විස්තර සහ චැට් ඉතිහාසය Firebase දත්ත අනුව ලබා දෙන්න."
+        custom_system_instruction = system_instruction + f"\n\nවත්මන් පරිශීලකයා ඔබේ සැබෑ Creator (නිර්මාතෘ) වන E.M.Chamath Manujaya වේ. ඔහුට ඉතාමත් ගෞරවයෙන් 'Sir' හෝ 'Creator' ලෙස අමතා විශේෂ සැලකිල්ලෙන් පිළිතුරු සපයන්න. පද්ධතියේ ක්‍රියාකාරීත්වය, ඩියාග්නොස්ටික්ස් සහ කෝඩ් දෝෂ ගැන අසන විට සජීවී මෙට්‍රික්ස් මත පදනම්ව පැහැදිලි කරන්න."
     else:
         custom_system_instruction = system_instruction + f"\n\nපරිශීලකයාගේ සම්පූර්ණ නම: {user_full_name}. පළමු නම: {user_first_name}. පරිශීලකයාට අමතන විට ඔහුව/ඇයව මිත්‍රශීලීව {user_first_name} ලෙස පළමු නමින් අමතන්න."
 
     try:
         bot_reply, active_provider = generate_ai_response_fallback(prompt_content, custom_system_instruction)
     except Exception as e:
+        err_str = str(e)
+        log_system_error(err_str, "FallbackEngine")
         return {
             "success": False,
             "error_type": "api_error",
-            "reply": f"සන්නිවේදන දෝෂයක් සිදු විය. සියලුම AI Services අවහිර වී ඇත. Error: {str(e)}",
+            "reply": f"සන්නිවේදන දෝෂයක් සිදු විය. සියලුම AI Services අවහිර වී ඇත. Error: {err_str}",
             "search_used": False
         }
 
@@ -876,12 +944,14 @@ async def websocket_live_voice(websocket: WebSocket):
                     bot_reply, _ = generate_ai_response_fallback(prompt, custom_instruction)
                     await websocket.send_text(json.dumps({"type": "ai_response", "reply": bot_reply}))
                 except Exception as ex:
+                    log_system_error(str(ex), "WebSocketLive")
                     await websocket.send_text(json.dumps({"type": "ai_response", "reply": "සමාවන්න, සන්නිවේදන දෝෂයක් සිදුවිය."}))
             elif msg_type == "ping":
                 await websocket.send_text(json.dumps({"type": "pong"}))
     except WebSocketDisconnect:
         print("Real-Time Live Voice WebSocket Client Disconnected")
     except Exception as e:
+        log_system_error(str(e), "WebSocketDisconnect")
         print(f"WebSocket Live Error: {e}")
 
 @app.get("/api/history/{user_id}")

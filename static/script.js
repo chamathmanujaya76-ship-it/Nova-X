@@ -55,6 +55,7 @@ function updateSidebarUserDisplay() {
     const userDisplayElem = document.getElementById("userNameDisplay");
     const creatorBadgeElem = document.getElementById("creatorBadge");
     const settingsCreatorBadgeElem = document.getElementById("settingsCreatorBadge");
+    const creatorControlTabBtn = document.getElementById("creatorControlTabBtn");
     const userAvatarImg = document.getElementById("userAvatarImg");
     const defaultUserIcon = document.getElementById("defaultUserIcon");
     const settingsGreeting = document.getElementById("settingsGreeting");
@@ -74,9 +75,11 @@ function updateSidebarUserDisplay() {
     if (isCreator) {
         if (creatorBadgeElem) creatorBadgeElem.style.display = "inline-flex";
         if (settingsCreatorBadgeElem) settingsCreatorBadgeElem.style.display = "inline-flex";
+        if (creatorControlTabBtn) creatorControlTabBtn.style.display = "flex";
     } else {
         if (creatorBadgeElem) creatorBadgeElem.style.display = "none";
         if (settingsCreatorBadgeElem) settingsCreatorBadgeElem.style.display = "none";
+        if (creatorControlTabBtn) creatorControlTabBtn.style.display = "none";
     }
 
     if (currentUser.profile_pic && userAvatarImg) {
@@ -86,6 +89,77 @@ function updateSidebarUserDisplay() {
     } else if (userAvatarImg && defaultUserIcon) {
         userAvatarImg.style.display = "none";
         defaultUserIcon.style.display = "block";
+    }
+}
+
+// CREATOR ADMIN METRICS & AUTO-DEBUG FUNCTIONS
+async function fetchCreatorMetrics() {
+    if (!currentUser || currentUser.email.toLowerCase() !== "chamathmanujaya76@gmail.com") return;
+
+    try {
+        const res = await fetch(`/api/admin/metrics/${currentUser.email}`);
+        const data = await res.json();
+        if (data.success && data.metrics) {
+            const metrics = data.metrics;
+            document.getElementById("statTokenCount").innerText = metrics.token_usage_estimated || 0;
+            document.getElementById("statErrorCount").innerText = metrics.errors_log ? metrics.errors_log.length : 0;
+
+            const usageListElem = document.getElementById("apiKeyUsageList");
+            if (usageListElem) {
+                let html = "";
+                for (const [provider, count] of Object.entries(metrics.api_calls_count || {})) {
+                    html += `<div style="display: flex; justify-content: space-between; padding: 2px 0;"><span>${provider}:</span><strong style="color: #00ff88;">${count} calls</strong></div>`;
+                }
+                usageListElem.innerHTML = html;
+            }
+
+            const errorBox = document.getElementById("systemErrorsLogBox");
+            if (errorBox && metrics.errors_log) {
+                if (metrics.errors_log.length === 0) {
+                    errorBox.innerHTML = "No errors logged.";
+                } else {
+                    let errHtml = "";
+                    metrics.errors_log.forEach(err => {
+                        errHtml += `[${err.time}] (${err.provider}): ${err.error}<br>`;
+                    });
+                    errorBox.innerHTML = errHtml;
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Error fetching creator metrics:", e);
+    }
+}
+
+async function runAutoDebugCheck() {
+    if (!currentUser || currentUser.email.toLowerCase() !== "chamathmanujaya76@gmail.com") return;
+    
+    const errorBox = document.getElementById("systemErrorsLogBox");
+    const errorText = errorBox ? errorBox.innerText : "No errors.";
+    
+    const debugContainer = document.getElementById("autoDebugResultContainer");
+    const debugTextElem = document.getElementById("autoDebugText");
+    
+    if (debugContainer) debugContainer.style.display = "block";
+    if (debugTextElem) debugTextElem.innerText = "AI is analyzing errors and generating debug fix...";
+
+    try {
+        const res = await fetch("/api/admin/autodebug", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                creator_email: currentUser.email,
+                error_text: errorText
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            if (debugTextElem) debugTextElem.innerText = data.fix;
+        } else {
+            if (debugTextElem) debugTextElem.innerText = "Auto-debug failed: " + data.message;
+        }
+    } catch (e) {
+        if (debugTextElem) debugTextElem.innerText = "Connection error during auto-debug.";
     }
 }
 
@@ -991,7 +1065,6 @@ function closeLiveVoiceMode() {
     document.getElementById("liveVoiceOverlay").classList.remove("active");
 }
 
-// 🛑 MARKDOWN CLEANING HELPER FOR TTS (ગැටලුව 01 විසඳුම)
 function cleanTextForSpeech(text) {
     if (!text) return "";
     return text
@@ -1059,7 +1132,6 @@ function speakText(text, onCompleteCallback = null) {
 function startLiveListening() {
     if (!isLiveVoiceActive || !SpeechRecognition || isRecognitionRunning) return;
 
-    // 🛑 INTERRUPT HANDLING (గැටලුව 04 විසඳුම): User කතා කිරීමට පටන් ගත් සැනින් AI කතා කිරීම නතර කරයි
     if ('speechSynthesis' in window && window.speechSynthesis.speaking) {
         window.speechSynthesis.cancel();
         isAiSpeaking = false;
