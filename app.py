@@ -1,4 +1,3 @@
-name=app_7.py
 import os
 import sys
 import time
@@ -489,7 +488,7 @@ def call_gemini(prompt_content: str, custom_system_instruction: str) -> str:
     valid_keys = [k.strip() for k in GEMINI_KEYS if k and k.strip()]
     if not valid_keys:
         raise Exception("Gemini API Keys සකසා නොමැත.")
-    models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-3.6-flash", "gemini-3.7-flash", "gemini-1.5-pro"]
+    models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-3.6-flash" , "gemini-3.7-flash", "gemini-1.5-pro"]
     for idx, key in enumerate(valid_keys, 1):
         try:
             client = genai.Client(api_key=key)
