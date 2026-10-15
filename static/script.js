@@ -24,6 +24,9 @@ let particlePositions, originalPositions, particleScales;
 let isAiSpeaking = false;
 let aiVoiceWaveTime = 0;
 
+let allSystemUsers = [];
+let selectedRecipientEmail = "all";
+
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -44,8 +47,29 @@ function checkUserAuth() {
         currentUser = JSON.parse(savedUser);
         if (authModal) authModal.style.display = "none";
         updateSidebarUserDisplay();
+        checkUnreadNotifications();
     } else {
         if (authModal) authModal.style.display = "flex";
+    }
+}
+
+async function checkUnreadNotifications() {
+    if (!currentUser || !currentUser.email) return;
+    try {
+        const res = await fetch(`/api/messages/${currentUser.email}`);
+        const data = await res.json();
+        const redDot = document.getElementById("settingsRedDot");
+        const tabDot = document.getElementById("tabUnreadDot");
+
+        if (data.success && data.unread_exists) {
+            if (redDot) redDot.style.display = "block";
+            if (tabDot) tabDot.style.display = "block";
+        } else {
+            if (redDot) redDot.style.display = "none";
+            if (tabDot) tabDot.style.display = "none";
+        }
+    } catch (e) {
+        console.error("Error checking notifications:", e);
     }
 }
 
@@ -89,6 +113,193 @@ function updateSidebarUserDisplay() {
     } else if (userAvatarImg && defaultUserIcon) {
         userAvatarImg.style.display = "none";
         defaultUserIcon.style.display = "block";
+    }
+}
+
+// MESSAGES & FEEDBACK TAB LOGIC
+async function loadMessagesAndUsersTab() {
+    if (!currentUser || !currentUser.email) return;
+    const isCreator = currentUser.email.toLowerCase() === "chamathmanujaya76@gmail.com";
+    const container = document.getElementById("messagesFeedbackContainer");
+    if (!container) return;
+
+    container.innerHTML = `<div style="text-align:center; color:#888; padding:20px;">Loading messages...</div>`;
+
+    try {
+        const msgRes = await fetch(`/api/messages/${currentUser.email}`);
+        const msgData = await msgRes.json();
+        const messages = msgData.messages || [];
+
+        // Mark as read
+        await fetch("/api/messages/mark_read", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: currentUser.email })
+        });
+        checkUnreadNotifications();
+
+        if (isCreator) {
+            // Creator UI: Broadcast / Direct Messaging Box + Users List
+            const usersRes = await fetch("/api/users/list");
+            const usersData = await usersRes.json();
+            allSystemUsers = usersData.users || [];
+
+            let html = `
+                <div style="display: flex; flex-direction: column; gap: 12px;">
+                    <h3 style="color: #FFD700; font-size: 15px;"><i class="fa-solid fa-comments"></i> Creator Broadcast & Direct Messaging Box</h3>
+                    <p style="font-size: 12px; color: #aaa;">සියලුම පරිශීලකයින්ට (All) හෝ විශේෂිත පරිශීලකයෙකුට පණිවිඩ යවන්න සහ ලැබුණු ප්‍රතිපෝෂණ බලන්න.</p>
+                    
+                    <div style="background: #0b0516; border: 1px solid #7B00FF; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 12px; color: #a855f7; font-weight: 700;">Recipient: <span id="selectedRecipientDisplay" style="color: #00ff88;">All Users (Broadcast)</span></span>
+                            <button onclick="selectRecipient('all', 'All Users (Broadcast)')" style="background: #120826; border: 1px solid #7B00FF; color: #fff; padding: 4px 10px; border-radius: 6px; font-size: 11px; cursor: pointer;">Select All</button>
+                        </div>
+
+                        <input type="text" id="userSearchInput" placeholder="Search user by name..." oninput="filterUserAccountList()" style="width: 100%; background: #000; border: 1px solid rgba(123,0,255,0.4); border-radius: 8px; padding: 8px 12px; color: #fff; font-size: 12px; outline: none;">
+
+                        <div id="usersAccountListContainer" style="max-height: 110px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; background: #000; padding: 8px; border-radius: 8px; border: 1px solid rgba(123,0,255,0.2);">
+                            ${renderUserAccountListItems(allSystemUsers)}
+                        </div>
+
+                        <textarea id="creatorMessageContent" placeholder="Type your message here..." style="width: 100%; height: 70px; background: #000; border: 1px solid #7B00FF; border-radius: 8px; padding: 8px; color: #fff; font-size: 12px; outline: none; resize: none;"></textarea>
+                        
+                        <button onclick="sendCreatorMessageAction()" style="background: linear-gradient(135deg, #7B00FF 0%, #0044FF 100%); color: #fff; border: none; padding: 8px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer;">Send Message</button>
+                    </div>
+
+                    <h4 style="color: #fff; font-size: 13px; margin-top: 5px;">Inbox / User Feedbacks & Messages</h4>
+                    <div style="max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; background: #000; padding: 10px; border-radius: 10px; border: 1px solid rgba(123,0,255,0.3);">
+                        ${messages.length === 0 ? '<div style="color: #666; font-size: 12px; text-align: center;">No messages or feedback received yet.</div>' : messages.map(m => `
+                            <div style="background: #0b0516; border: 1px solid rgba(123,0,255,0.3); border-radius: 8px; padding: 8px; font-size: 12px;">
+                                <div style="display: flex; justify-content: space-between; color: #a855f7; font-weight: 600; margin-bottom: 2px;">
+                                    <span>${m.sender_name || m.sender_email}</span>
+                                    <span style="font-size: 10px; color: #666;">To: ${m.recipient_email}</span>
+                                </div>
+                                <div style="color: #fff;">${m.content}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+            container.innerHTML = html;
+        } else {
+            // Normal User UI: Send message/feedback to creator with watermark placeholder
+            let html = `
+                <div style="display: flex; flex-direction: column; gap: 14px;">
+                    <h3 style="color: #7B00FF; font-size: 15px;"><i class="fa-solid fa-comments"></i> Messages and Feedback</h3>
+                    <p style="font-size: 12px; color: #aaa;">You can send messages or feedback directly to the creator (Chamath Manujaya) here.</p>
+                    
+                    <div style="background: #0b0516; border: 1px solid #7B00FF; border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 10px;">
+                        <textarea id="userFeedbackContent" placeholder="Send a message or feedback to the creator..." style="width: 100%; height: 90px; background: #000; border: 1px solid #7B00FF; border-radius: 8px; padding: 10px; color: #fff; font-size: 13px; outline: none; resize: none;"></textarea>
+                        <button onclick="sendUserFeedbackAction()" style="background: linear-gradient(135deg, #7B00FF 0%, #0044FF 100%); color: #fff; border: none; padding: 10px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer;">Send to Creator</button>
+                    </div>
+
+                    <h4 style="color: #fff; font-size: 13px; margin-top: 5px;">Messages from Creator</h4>
+                    <div style="max-height: 180px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; background: #000; padding: 10px; border-radius: 10px; border: 1px solid rgba(123,0,255,0.3);">
+                        ${messages.length === 0 ? '<div style="color: #666; font-size: 12px; text-align: center;">No messages from creator.</div>' : messages.map(m => `
+                            <div style="background: #0b0516; border: 1px solid rgba(123,0,255,0.3); border-radius: 8px; padding: 8px; font-size: 12px;">
+                                <div style="color: #FFD700; font-weight: 600; margin-bottom: 2px;"><i class="fa-solid fa-crown"></i> From Creator</div>
+                                <div style="color: #fff;">${m.content}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+            container.innerHTML = html;
+        }
+    } catch (e) {
+        container.innerHTML = `<div style="color: #ff4d4d; font-size: 12px; text-align: center;">Error loading messages.</div>`;
+    }
+}
+
+function renderUserAccountListItems(users) {
+    if (!users || users.length === 0) return '<div style="color:#666; font-size:11px; text-align:center;">No users found</div>';
+    return users.map(u => `
+        <div onclick="selectRecipient('${u.email}', '${u.name}')" style="padding: 6px 8px; border-radius: 6px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: #120826; transition: background 0.2s;" onmouseover="this.style.background='#1f0d3d'" onmouseout="this.style.background='#120826'">
+            <span style="color: #fff; font-weight: 600;">${u.name}</span>
+            <span style="color: #888; font-size: 11px;">${u.email}</span>
+        </div>
+    `).join('');
+}
+
+function filterUserAccountList() {
+    const query = document.getElementById("userSearchInput").value.toLowerCase();
+    const filtered = allSystemUsers.filter(u => u.name.toLowerCase().includes(query) || u.email.toLowerCase().includes(query));
+    const container = document.getElementById("usersAccountListContainer");
+    if (container) {
+        container.innerHTML = renderUserAccountListItems(filtered);
+    }
+}
+
+function selectRecipient(email, name) {
+    selectedRecipientEmail = email;
+    const display = document.getElementById("selectedRecipientDisplay");
+    if (display) {
+        display.innerText = name;
+        display.style.color = email === 'all' ? '#00ff88' : '#a855f7';
+    }
+}
+
+async function sendCreatorMessageAction() {
+    const content = document.getElementById("creatorMessageContent").value.trim();
+    if (!content) {
+        alert("කරුණාකර පණිවිඩයක් ටයිප් කරන්න.");
+        return;
+    }
+    const senderName = currentUser.full_name || currentUser.first_name || "Creator";
+
+    try {
+        const res = await fetch("/api/messages/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                sender_email: currentUser.email,
+                sender_name: senderName,
+                recipient_email: selectedRecipientEmail,
+                content: content
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert("පණිවිඩය සාර්ථකව යවන ලදී!");
+            document.getElementById("creatorMessageContent").value = "";
+            loadMessagesAndUsersTab();
+        } else {
+            alert("පණිවිඩය යැවීමට නොහැකි විය.");
+        }
+    } catch (e) {
+        alert("සන්නිවේදන දෝෂයක් සිදුවිය!");
+    }
+}
+
+async function sendUserFeedbackAction() {
+    const content = document.getElementById("userFeedbackContent").value.trim();
+    if (!content) {
+        alert("Please enter a message or feedback.");
+        return;
+    }
+    const senderName = currentUser.full_name || `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || currentUser.first_name || "User";
+
+    try {
+        const res = await fetch("/api/messages/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                sender_email: currentUser.email,
+                sender_name: senderName,
+                recipient_email: "chamathmanujaya76@gmail.com",
+                content: content
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert("Feedback sent successfully to Creator!");
+            document.getElementById("userFeedbackContent").value = "";
+            loadMessagesAndUsersTab();
+        } else {
+            alert("Failed to send feedback.");
+        }
+    } catch (e) {
+        alert("Connection error!");
     }
 }
 
@@ -235,7 +446,7 @@ async function handleLogin(e) {
             localStorage.setItem("nexuz_user_data", JSON.stringify(data.user));
             checkUserAuth();
         } else {
-            alert(data.message || "Login විය නොහැකි විය.");
+            alert(data.message || "Email එක හෝ Password එක වැරදියි!");
         }
     } catch (err) {
         alert("සන්නිවේදන දෝෂයක් සිදුවිය!");

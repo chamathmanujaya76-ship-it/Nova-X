@@ -122,6 +122,12 @@
                         <i class="fa-solid fa-user-astronaut"></i> <span>Personal Intelligence</span>
                     </button>
 
+                    <!-- MESSAGES AND FEEDBACK TAB -->
+                    <button class="nav-tab-btn" onclick="switchSettingsTab('messages-feedback', this); loadMessagesAndUsersTab();">
+                        <i class="fa-solid fa-comments"></i> <span>Messages & Feedback</span>
+                        <span id="tabUnreadDot" class="unread-tab-dot" style="display:none;"></span>
+                    </button>
+
                     <button class="nav-tab-btn" onclick="switchSettingsTab('nexuz-voice', this)">
                         <i class="fa-solid fa-microphone-lines"></i> <span>Nexuz Voice</span>
                     </button>
@@ -186,6 +192,13 @@
 
                             <button type="submit" class="auth-btn">Save Changes</button>
                         </form>
+                    </div>
+
+                    <!-- MESSAGES & FEEDBACK TAB CONTENT -->
+                    <div class="tab-content" id="tab-messages-feedback" style="display: none;">
+                        <div id="messagesFeedbackContainer" style="display: flex; flex-direction: column; gap: 14px;">
+                            <!-- Dynamically loaded via JavaScript for Creator vs Normal User -->
+                        </div>
                     </div>
 
                     <div class="tab-content" id="tab-subscription" style="display: none;">
@@ -346,8 +359,9 @@
                         <span class="user-name" id="userNameDisplay">Account User</span>
                     </div>
                 </div>
-                <button class="settings-btn" onclick="openSettingsModal()" title="Settings">
+                <button class="settings-btn" onclick="openSettingsModal()" title="Settings" style="position: relative;">
                     <i class="fa-solid fa-gear"></i>
+                    <span id="settingsRedDot" class="settings-red-dot" style="display: none;"></span>
                 </button>
             </div>
         </aside>

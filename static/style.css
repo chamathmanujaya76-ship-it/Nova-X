@@ -310,11 +310,32 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    position: relative;
 }
 
 .settings-btn:hover {
     color: #7B00FF;
     transform: rotate(45deg);
+}
+
+.settings-red-dot {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 8px;
+    height: 8px;
+    background-color: #ef4444;
+    border-radius: 50%;
+    box-shadow: 0 0 8px #ef4444;
+}
+
+.unread-tab-dot {
+    width: 8px;
+    height: 8px;
+    background-color: #ef4444;
+    border-radius: 50%;
+    margin-left: auto;
+    box-shadow: 0 0 8px #ef4444;
 }
 
 .main-container {
@@ -1411,6 +1432,7 @@ input:checked + .slider:before {
     }
 
     .sidebar-overlay.active {
+        box-shadow: 0 0 0 100vw rgba(0,0,0,0.7);
         display: block;
     }
 
