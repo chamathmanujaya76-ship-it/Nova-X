@@ -1,3 +1,4 @@
+name=app_7.py
 import os
 import sys
 import time
@@ -294,6 +295,17 @@ def get_firebase_context_for_ai(user_id: str, is_creator: bool, user_email: str 
             except Exception as me:
                 print(f"Error fetching messages context: {me}")
 
+        # Global Knowledge Base summary for Creator AI Context
+        global_kb_summary = ""
+        if is_creator:
+            try:
+                global_kb_ref = db.collection("global_knowledge_base").limit(20).stream()
+                kb_items = [f"- {d.id}: {d.to_dict().get('content', '')}" for d in global_kb_ref]
+                if kb_items:
+                    global_kb_summary = "\n[Global Knowledge Base Data]:\n" + "\n".join(kb_items) + "\n"
+            except Exception as gke:
+                print(f"Error fetching global KB: {gke}")
+
         total_count = len(all_users)
         adaptive_intel = get_user_adaptive_intelligence_context(user_id)
         metrics_summary = f"\n[System Performance & Diagnostics]:\n- Active Users Count: {total_count}\n- API Calls Status: {SYSTEM_METRICS['api_calls_count']}\n- Recent Errors Log Count: {len(SYSTEM_METRICS['errors_log'])}\n"
@@ -301,7 +313,7 @@ def get_firebase_context_for_ai(user_id: str, is_creator: bool, user_email: str 
         if not is_creator:
             return f"[System Database Stats & Self-Learning Memory]:\n- Total Registered Nexuz Users: {total_count}\n{messages_summary_str}\n{adaptive_intel}\n(Detailed user profiles and chat histories are restricted to Creator account only)."
 
-        context_lines = [f"[System Database Stats & Metrics for Creator Access]:\n- Total Users: {total_count}\n{metrics_summary}\n{messages_summary_str}\n{adaptive_intel}\n"]
+        context_lines = [f"[System Database Stats & Metrics for Creator Access]:\n- Total Users: {total_count}\n{metrics_summary}\n{global_kb_summary}\n{messages_summary_str}\n{adaptive_intel}\n"]
         for u in all_users:
             context_lines.append(f"📌 User: {u['name']} (ID: {u['id']})")
             context_lines.append(f"   Email: {u['email']} | Age: {u['age']} | Country: {u['country']}")
@@ -477,7 +489,7 @@ def call_gemini(prompt_content: str, custom_system_instruction: str) -> str:
     valid_keys = [k.strip() for k in GEMINI_KEYS if k and k.strip()]
     if not valid_keys:
         raise Exception("Gemini API Keys සකසා නොමැත.")
-    models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-3.6-flash", "gemini-1.5-pro"]
+    models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-3.6-flash", "gemini-3.7-flash", "gemini-1.5-pro"]
     for idx, key in enumerate(valid_keys, 1):
         try:
             client = genai.Client(api_key=key)
@@ -694,7 +706,7 @@ system_instruction = """
    - පරිශීලකයන්ට Creator (චමත්) වෙත පණිවිඩ සහ ප්‍රතිපෝෂණ (Feedback) යැවීමට හැකියාව ඇත. පරිශීලකයෙකු AI වෙත පැමිණ "මගේ මැසේජ් ඇවිල්ලද?" (Do I have any messages?) හෝ Creator ට පණිවිඩයක් යවන්නැයි ඇසුවොත්, සජීවීව දත්ත පරීක්ෂා කර හෝ පණිවිඩ යැවීමට උදව් කරන්න.
    - Creator (චමත්) ඇසුවොත් "මාව සම්බන්ධ කරගත් පරිශීලකයින් කවුද?", පවතින පණිවිඩ සහ ප්‍රතිපෝෂණ විස්තර කර දෙන්න.
 3. Database Privacy & Performance Monitoring:
-   - ඔබ වෙත සජීවීව පහතින් සපයා ඇති [Firebase Context & Self-Learning Memory & System Metrics] තොරතුරු කියවා ප්‍රශ්න වලට පිළිතුරු දෙන්න.
+   - ඔබ වෙත සජීවීව පහතින් සපයා ඇති [Firebase Context & Self-Learning Memory & System Metrics & Global Knowledge Base] තොරතුරු කියවා ප්‍රශ්න වලට පිළිතුරු දෙන්න. Creator විසින් පාලනය කරන Knowledge Base දත්ත සහ Database තොරතුරු පිළිබඳව ද Creator ගේ විමසීම් වලදී සම්පූර්ණ අවබෝධයෙන් පිළිතුරු දෙන්න.
 """
 
 class ChatMessage(BaseModel):
@@ -746,7 +758,7 @@ async def serve_index():
         return FileResponse(index_path)
     return HTMLResponse("<h2>Nexuz Backend is Running Successfully!</h2>")
 
-# ================= CREATOR ADMIN METRICS & AUTO-DEBUG ENDPOINTS =================
+# ================= CREATOR ADMIN METRICS & ADMIN DASHBOARD ENDPOINTS =================
 
 @app.get("/api/admin/metrics/{creator_email}")
 async def get_admin_metrics(creator_email: str):
@@ -769,6 +781,95 @@ async def auto_debug_error(req: dict):
         return {"success": True, "fix": fix_reply}
     except Exception as e:
         return {"success": False, "message": str(e)}
+
+# --- 1. Knowledge Base Viewer & Editor & Management APIs ---
+@app.get("/api/admin/knowledge/{creator_email}")
+async def get_global_knowledge_base(creator_email: str):
+    if not creator_email or creator_email.strip().lower() != "chamathmanujaya76@gmail.com" or not db:
+        return {"success": False, "message": "Unauthorized or DB not connected", "items": []}
+    try:
+        docs = db.collection("global_knowledge_base").stream()
+        items = [{"id": d.id, **d.to_dict()} for d in docs]
+        return {"success": True, "items": items}
+    except Exception as e:
+        return {"success": False, "message": str(e), "items": []}
+
+@app.post("/api/admin/knowledge/save")
+async def save_global_knowledge(req: dict):
+    creator_email = req.get("creator_email", "")
+    if not creator_email or creator_email.strip().lower() != "chamathmanujaya76@gmail.com" or not db:
+        return {"success": False, "message": "Unauthorized"}
+    doc_id = req.get("id") or hashlib.md5(req.get("content", "").encode('utf-8')).hexdigest()
+    try:
+        db.collection("global_knowledge_base").document(doc_id).set({
+            "content": req.get("content"),
+            "category": req.get("category", "General"),
+            "timestamp": datetime.utcnow()
+        }, merge=True)
+        return {"success": True, "message": "Knowledge saved successfully"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+@app.post("/api/admin/knowledge/delete")
+async def delete_global_knowledge(req: dict):
+    creator_email = req.get("creator_email", "")
+    if not creator_email or creator_email.strip().lower() != "chamathmanujaya76@gmail.com" or not db:
+        return {"success": False, "message": "Unauthorized"}
+    doc_id = req.get("id")
+    try:
+        db.collection("global_knowledge_base").document(doc_id).delete()
+        return {"success": True, "message": "Knowledge deleted successfully"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+# --- 2. Terminal & CLI Integration API ---
+@app.post("/api/admin/cli")
+async def execute_creator_cli(req: dict):
+    creator_email = req.get("creator_email", "")
+    if not creator_email or creator_email.strip().lower() != "chamathmanujaya76@gmail.com":
+        return {"success": False, "output": "Unauthorized Access"}
+    command = req.get("command", "").strip()
+    
+    # Built-in secure CLI command interpreter
+    if command == "help":
+        output = "Available CLI Commands:\n- status: Show system uptime and metrics\n- list_users: Show total registered users\n- clear_logs: Clear error logs\n- ai_params: Show current model parameters (Temperature=0.7)"
+    elif command == "status":
+        output = f"Nexuz System Online.\nMetrics: {json.dumps(SYSTEM_METRICS['api_calls_count'], indent=2)}"
+    elif command == "list_users":
+        if db:
+            users_count = len(list(db.collection("users").stream()))
+            output = f"Total Registered Users in Firebase: {users_count}"
+        else:
+            output = "Database not connected."
+    elif command == "clear_logs":
+        SYSTEM_METRICS["errors_log"] = []
+        output = "System error logs cleared successfully."
+    elif command == "ai_params":
+        output = "Current AI Parameters:\nModel: Multi-Provider Fallback\nTemperature: 0.7\nTop-P: Default"
+    else:
+        # Fallback to AI execution/advice for custom CLI queries
+        prompt = f"Execute or explain this administrative backend command for Nexuz AI system: {command}"
+        try:
+            output, _ = generate_ai_response_fallback(prompt, system_instruction)
+        except Exception as e:
+            output = f"CLI Command Error: {e}"
+            
+    return {"success": True, "output": output}
+
+# --- 3. Database Direct Inspector API ---
+@app.get("/api/admin/db/inspect/{creator_email}")
+async def inspect_database(creator_email: str):
+    if not creator_email or creator_email.strip().lower() != "chamathmanujaya76@gmail.com" or not db:
+        return {"success": False, "collections": {}}
+    try:
+        collections = {}
+        for coll_ref in db.collections():
+            coll_name = coll_ref.id
+            docs = [ {"id": d.id, **d.to_dict()} for d in coll_ref.limit(10).stream() ]
+            collections[coll_name] = docs
+        return {"success": True, "collections": collections}
+    except Exception as e:
+        return {"success": False, "error": str(e), "collections": {}}
 
 @app.post("/api/register")
 async def register(req: AuthRequest):

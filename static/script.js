@@ -130,7 +130,6 @@ async function loadMessagesAndUsersTab() {
         const msgData = await msgRes.json();
         const messages = msgData.messages || [];
 
-        // Mark as read
         await fetch("/api/messages/mark_read", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -139,7 +138,6 @@ async function loadMessagesAndUsersTab() {
         checkUnreadNotifications();
 
         if (isCreator) {
-            // Creator UI: Broadcast / Direct Messaging Box + Users List
             const usersRes = await fetch("/api/users/list");
             const usersData = await usersRes.json();
             allSystemUsers = usersData.users || [];
@@ -182,7 +180,6 @@ async function loadMessagesAndUsersTab() {
             `;
             container.innerHTML = html;
         } else {
-            // Normal User UI: Send message/feedback to creator with watermark placeholder
             let html = `
                 <div style="display: flex; flex-direction: column; gap: 14px;">
                     <h3 style="color: #7B00FF; font-size: 15px;"><i class="fa-solid fa-comments"></i> Messages and Feedback</h3>
@@ -303,7 +300,7 @@ async function sendUserFeedbackAction() {
     }
 }
 
-// CREATOR ADMIN METRICS & AUTO-DEBUG FUNCTIONS
+// CREATOR ADMIN METRICS & ADVANCED ADMIN DASHBOARD FUNCTIONS
 async function fetchCreatorMetrics() {
     if (!currentUser || currentUser.email.toLowerCase() !== "chamathmanujaya76@gmail.com") return;
 
@@ -337,8 +334,120 @@ async function fetchCreatorMetrics() {
                 }
             }
         }
+        loadCreatorKnowledgeBase();
+        loadDatabaseInspector();
     } catch (e) {
         console.error("Error fetching creator metrics:", e);
+    }
+}
+
+// --- Knowledge Base Viewer & Editor frontend functions ---
+async function loadCreatorKnowledgeBase() {
+    try {
+        const res = await fetch(`/api/admin/knowledge/${currentUser.email}`);
+        const data = await res.json();
+        const container = document.getElementById("creatorKnowledgeList");
+        if (!container) return;
+        if (data.success && data.items.length > 0) {
+            container.innerHTML = data.items.map(item => `
+                <div style="background: #06030E; border: 1px solid rgba(123,0,255,0.4); border-radius: 8px; padding: 8px; font-size: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <div><span style="color:#a855f7; font-weight:700;">[${item.category}]</span> ${item.content}</div>
+                    <button onclick="deleteCreatorKnowledge('${item.id}')" style="background: #ef4444; border: none; color: #fff; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;"><i class="fa-solid fa-trash"></i></button>
+                </div>
+            `).join('');
+        } else {
+            container.innerHTML = `<div style="color: #666; font-size: 12px; text-align: center;">No custom Knowledge Base entries found.</div>`;
+        }
+    } catch (e) {
+        console.error("Error loading knowledge base:", e);
+    }
+}
+
+async function addCreatorKnowledgeItem() {
+    const content = document.getElementById("newKnowledgeInput").value.trim();
+    const category = document.getElementById("newKnowledgeCategory").value;
+    if (!content) return alert("Please enter knowledge content.");
+
+    try {
+        const res = await fetch("/api/admin/knowledge/save", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ creator_email: currentUser.email, content: content, category: category })
+        });
+        const data = await res.json();
+        if (data.success) {
+            document.getElementById("newKnowledgeInput").value = "";
+            loadCreatorKnowledgeBase();
+            alert("Knowledge injected successfully!");
+        } else {
+            alert("Failed to inject knowledge.");
+        }
+    } catch (e) {
+        alert("Connection error.");
+    }
+}
+
+async function deleteCreatorKnowledge(id) {
+    if (!confirm("Are you sure you want to delete this knowledge entry?")) return;
+    try {
+        await fetch("/api/admin/knowledge/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ creator_email: currentUser.email, id: id })
+        });
+        loadCreatorKnowledgeBase();
+    } catch (e) {
+        alert("Error deleting entry.");
+    }
+}
+
+// --- Terminal & CLI Integration frontend functions ---
+async function handleCreatorCliKeydown(e) {
+    if (e.key === "Enter") {
+        const cmd = e.target.value.trim();
+        if (!cmd) return;
+        const outputBox = document.getElementById("cliOutputBox");
+        outputBox.innerHTML += `<br><span style="color: #00ff88;">> ${cmd}</span>`;
+        e.target.value = "";
+
+        try {
+            const res = await fetch("/api/admin/cli", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ creator_email: currentUser.email, command: cmd })
+            });
+            const data = await res.json();
+            outputBox.innerHTML += `<br><span style="color: #fff; white-space: pre-wrap;">${data.output}</span>`;
+            outputBox.scrollTop = outputBox.scrollHeight;
+        } catch (err) {
+            outputBox.innerHTML += `<br><span style="color: #ff4d4d;">CLI Execution Error</span>`;
+        }
+    }
+}
+
+// --- Database Direct Inspector frontend functions ---
+async function loadDatabaseInspector() {
+    try {
+        const res = await fetch(`/api/admin/db/inspect/${currentUser.email}`);
+        const data = await res.json();
+        const container = document.getElementById("dbInspectorContainer");
+        if (!container) return;
+        if (data.success && data.collections) {
+            let html = "";
+            for (const [collName, docs] of Object.entries(data.collections)) {
+                html += `
+                    <div style="background: #06030E; border: 1px solid #7B00FF; border-radius: 8px; padding: 10px; margin-bottom: 8px;">
+                        <strong style="color: #FFD700; font-size: 13px;"><i class="fa-solid fa-database"></i> Collection: ${collName} (${docs.length} docs)</strong>
+                        <pre style="font-size: 11px; color: #38bdf8; max-height: 100px; overflow-y: auto; margin-top: 6px;">${JSON.stringify(docs, null, 2)}</pre>
+                    </div>
+                `;
+            }
+            container.innerHTML = html || "No collections found.";
+        } else {
+            container.innerHTML = "Failed to inspect database.";
+        }
+    } catch (e) {
+        console.error("Error inspecting DB:", e);
     }
 }
 
