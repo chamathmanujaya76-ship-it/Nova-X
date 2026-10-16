@@ -340,7 +340,7 @@ def search_tavily(query: str) -> str:
             headers = {"Content-Type": "application/json"}
             payload = json.dumps({"api_key": key, "query": query, "max_results": 4, "include_images": True}).encode('utf-8')
             req = urllib.request.Request(url, data=payload, headers=headers)
-            with urllib.request.urlopen(req, timeout=6) as response:
+            with urllib.request.urlopen(req, timeout=4) as response:
                 data = json.loads(response.read().decode('utf-8'))
                 SYSTEM_METRICS["api_calls_count"]["Tavily"] += 1
                 results = []
@@ -370,7 +370,7 @@ def search_serpapi(query: str) -> str:
             params = urllib.parse.urlencode({"q": query, "api_key": key, "engine": "google"})
             url = f"https://serpapi.com/search.json?{params}"
             req = urllib.request.Request(url)
-            with urllib.request.urlopen(req, timeout=6) as response:
+            with urllib.request.urlopen(req, timeout=4) as response:
                 data = json.loads(response.read().decode('utf-8'))
                 SYSTEM_METRICS["api_calls_count"]["SerpAPI"] += 1
                 results = []
@@ -400,7 +400,7 @@ def search_google_custom(query: str) -> str:
             params = urllib.parse.urlencode({"key": key, "cx": cx, "q": query})
             url = f"https://www.googleapis.com/customsearch/v1?{params}"
             req = urllib.request.Request(url)
-            with urllib.request.urlopen(req, timeout=6) as response:
+            with urllib.request.urlopen(req, timeout=4) as response:
                 data = json.loads(response.read().decode('utf-8'))
                 results = []
                 for item in data.get("items", [])[:4]:
@@ -425,7 +425,7 @@ def search_exa(query: str) -> str:
             headers = {"x-api-key": key, "Content-Type": "application/json"}
             payload = json.dumps({"query": query, "numResults": 4}).encode('utf-8')
             req = urllib.request.Request(url, data=payload, headers=headers)
-            with urllib.request.urlopen(req, timeout=6) as response:
+            with urllib.request.urlopen(req, timeout=4) as response:
                 data = json.loads(response.read().decode('utf-8'))
                 results = []
                 for r in data.get("results", []):
@@ -445,14 +445,14 @@ def search_ddg(query: str) -> str:
     results = []
     clean_query = query.strip()
     with DDGS() as ddgs:
-        for r in ddgs.text(clean_query, max_results=4):
+        for r in ddgs.text(clean_query, max_results=3):
             title = r.get('title', '')
             snippet = r.get('body', '')
             link = r.get('href', '')
             if title or snippet:
                 results.append(f"📌 Title: {title}\nSnippet: {snippet}\nSource Link: {link}")
         try:
-            img_results = ddgs.images(clean_query, max_results=3)
+            img_results = ddgs.images(clean_query, max_results=2)
             if img_results:
                 results.append("\n🖼️ Found Web Images:")
                 for img in img_results:
@@ -488,7 +488,16 @@ def call_gemini(prompt_content: str, custom_system_instruction: str) -> str:
     valid_keys = [k.strip() for k in GEMINI_KEYS if k and k.strip()]
     if not valid_keys:
         raise Exception("Gemini API Keys සකසා නොමැත.")
-    models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-3.6-flash" , "gemini-3.7-flash", "gemini-1.5-pro"]
+    
+    # ස්වයංක්‍රීයව ප්‍රශ්නයේ ස්වභාවය අනුව Flash හෝ Pro තෝරාගැනීම (Token ඉතිරි කරගැනීමට සහ වේගය වැඩි කිරීමට)
+    q_lower = prompt_content.lower()
+    is_complex = any(kw in q_lower for kw in ["code", "python", "programming", "analyze", "explain deeply", "math", "equation", "ගණිතය", "කෝඩ්", "විස්තර කරන්න"])
+    
+    if is_complex:
+        models_to_try = ["gemini-1.5-pro", "gemini-3.8-flash", "gemini-3.5-flash-lite"]
+    else:
+        models_to_try = ["gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-1.5-pro"]
+
     for idx, key in enumerate(valid_keys, 1):
         try:
             client = genai.Client(api_key=key)
@@ -511,26 +520,32 @@ def call_gemini(prompt_content: str, custom_system_instruction: str) -> str:
 
 def call_groq(prompt_content: str, custom_system_instruction: str) -> str:
     valid_keys = [k.strip() for k in GROQ_KEYS if k and k.strip()]
+    if not valid_keys:
+        raise Exception("Groq API Keys සකසා නොමැත.")
+    
+    groq_models = ["llama-3.1-8b-instant", "llama-3.3-70b-specdec"]
+
     for idx, key in enumerate(valid_keys, 1):
-        try:
-            url = "https://api.groq.com/openai/v1/chat/completions"
-            headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
-            payload = json.dumps({
-                "model": "llama-3.3-70b-versatile",
-                "messages": [{"role": "system", "content": custom_system_instruction}, {"role": "user", "content": prompt_content}],
-                "temperature": 0.7
-            }).encode('utf-8')
-            req = urllib.request.Request(url, data=payload, headers=headers)
-            with urllib.request.urlopen(req, timeout=12) as resp:
-                res_data = json.loads(resp.read().decode('utf-8'))
-                reply = res_data["choices"][0]["message"]["content"]
-                if reply and reply.strip():
-                    SYSTEM_METRICS["api_calls_count"]["Groq"] += 1
-                    SYSTEM_METRICS["token_usage_estimated"] += len(prompt_content.split()) + len(reply.split())
-                    return reply
-        except Exception as e:
-            log_system_error(f"Groq Key {idx} failed: {e}", "Groq")
-            continue
+        for model in groq_models:
+            try:
+                url = "https://api.groq.com/openai/v1/chat/completions"
+                headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+                payload = json.dumps({
+                    "model": model,
+                    "messages": [{"role": "system", "content": custom_system_instruction}, {"role": "user", "content": prompt_content}],
+                    "temperature": 0.7
+                }).encode('utf-8')
+                req = urllib.request.Request(url, data=payload, headers=headers)
+                with urllib.request.urlopen(req, timeout=6) as resp:
+                    res_data = json.loads(resp.read().decode('utf-8'))
+                    reply = res_data["choices"][0]["message"]["content"]
+                    if reply and reply.strip():
+                        SYSTEM_METRICS["api_calls_count"]["Groq"] += 1
+                        SYSTEM_METRICS["token_usage_estimated"] += len(prompt_content.split()) + len(reply.split())
+                        return reply
+            except Exception as e:
+                log_system_error(f"Groq Key {idx} ({model}) failed: {e}", "Groq")
+                continue
     raise Exception("සියලුම Groq Keys අසාර්ථක විය.")
 
 def call_openrouter(prompt_content: str, custom_system_instruction: str) -> str:
@@ -545,7 +560,7 @@ def call_openrouter(prompt_content: str, custom_system_instruction: str) -> str:
                 "temperature": 0.7
             }).encode('utf-8')
             req = urllib.request.Request(url, data=payload, headers=headers)
-            with urllib.request.urlopen(req, timeout=12) as resp:
+            with urllib.request.urlopen(req, timeout=8) as resp:
                 res_data = json.loads(resp.read().decode('utf-8'))
                 reply = res_data["choices"][0]["message"]["content"]
                 if reply and reply.strip():
@@ -569,7 +584,7 @@ def call_cerebras(prompt_content: str, custom_system_instruction: str) -> str:
                 "temperature": 0.7
             }).encode('utf-8')
             req = urllib.request.Request(url, data=payload, headers=headers)
-            with urllib.request.urlopen(req, timeout=10) as resp:
+            with urllib.request.urlopen(req, timeout=6) as resp:
                 res_data = json.loads(resp.read().decode('utf-8'))
                 reply = res_data["choices"][0]["message"]["content"]
                 if reply and reply.strip():
@@ -593,7 +608,7 @@ def call_together(prompt_content: str, custom_system_instruction: str) -> str:
                 "temperature": 0.7
             }).encode('utf-8')
             req = urllib.request.Request(url, data=payload, headers=headers)
-            with urllib.request.urlopen(req, timeout=12) as resp:
+            with urllib.request.urlopen(req, timeout=8) as resp:
                 res_data = json.loads(resp.read().decode('utf-8'))
                 reply = res_data["choices"][0]["message"]["content"]
                 if reply and reply.strip():
@@ -617,7 +632,7 @@ def call_deepinfra(prompt_content: str, custom_system_instruction: str) -> str:
                 "temperature": 0.7
             }).encode('utf-8')
             req = urllib.request.Request(url, data=payload, headers=headers)
-            with urllib.request.urlopen(req, timeout=12) as resp:
+            with urllib.request.urlopen(req, timeout=8) as resp:
                 res_data = json.loads(resp.read().decode('utf-8'))
                 reply = res_data["choices"][0]["message"]["content"]
                 if reply and reply.strip():
@@ -637,7 +652,7 @@ def call_cohere(prompt_content: str, custom_system_instruction: str) -> str:
             headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
             payload = json.dumps({"model": "command-r-plus", "message": prompt_content, "preamble": custom_system_instruction}).encode('utf-8')
             req = urllib.request.Request(url, data=payload, headers=headers)
-            with urllib.request.urlopen(req, timeout=12) as resp:
+            with urllib.request.urlopen(req, timeout=8) as resp:
                 res_data = json.loads(resp.read().decode('utf-8'))
                 reply = res_data.get("text", "")
                 if reply and reply.strip():
@@ -829,7 +844,6 @@ async def execute_creator_cli(req: dict):
         return {"success": False, "output": "Unauthorized Access"}
     command = req.get("command", "").strip()
     
-    # Built-in secure CLI command interpreter
     if command == "help":
         output = "Available CLI Commands:\n- status: Show system uptime and metrics\n- list_users: Show total registered users\n- clear_logs: Clear error logs\n- ai_params: Show current model parameters (Temperature=0.7)"
     elif command == "status":
@@ -846,7 +860,6 @@ async def execute_creator_cli(req: dict):
     elif command == "ai_params":
         output = "Current AI Parameters:\nModel: Multi-Provider Fallback\nTemperature: 0.7\nTop-P: Default"
     else:
-        # Fallback to AI execution/advice for custom CLI queries
         prompt = f"Execute or explain this administrative backend command for Nexuz AI system: {command}"
         try:
             output, _ = generate_ai_response_fallback(prompt, system_instruction)
