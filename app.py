@@ -12,6 +12,7 @@ from fastapi import FastAPI, Request, HTTPException, WebSocket, WebSocketDisconn
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
+from duckduckgo_search import DDGS
 from google import genai
 import firebase_admin
 from firebase_admin import credentials, firestore
@@ -36,6 +37,7 @@ def log_system_error(err_msg: str, provider: str = "System"):
     if len(SYSTEM_METRICS["errors_log"]) > 50:
         SYSTEM_METRICS["errors_log"].pop()
     
+    # Proactive Error Notification Trigger to Creator Inbox
     try:
         if db:
             db.collection("system_messages").add({
@@ -99,6 +101,7 @@ def save_to_local_user_vault(user_id: str, user_name: str, data_type: str, conte
             with open(chat_json_path, "w", encoding="utf-8") as f:
                 json.dump(history_data, f, ensure_ascii=False, indent=4)
 
+            # CSV / Excel / Access compatible structured record log
             csv_path = os.path.join(user_folder_path, "data_records.csv")
             file_exists = os.path.exists(csv_path)
             with open(csv_path, "a", encoding="utf-8") as f:
@@ -288,9 +291,10 @@ def hash_password(password: str) -> str:
 
 # ================= AUTONOMOUS PROACTIVE BACKGROUND DAEMON =================
 async def proactive_system_daemon():
+    """Background Daemon that periodically checks system health and proposes proactive features to Creator."""
     while True:
         try:
-            await asyncio.sleep(300)
+            await asyncio.sleep(300) # Run every 5 minutes
             if db:
                 error_count = len(SYSTEM_METRICS["errors_log"])
                 if error_count > 0:
@@ -614,9 +618,9 @@ def call_gemini(prompt_content: str, custom_system_instruction: str) -> str:
     is_complex = any(kw in q_lower for kw in ["code", "python", "programming", "analyze", "explain deeply", "math", "equation", "ගණිතය", "කෝඩ්", "විස්තර කරන්න"])
     
     if is_complex:
-        models_to_try = ["gemini-1.5-pro", "gemini-2.5-flash", "gemini-2.0-flash"]
+        models_to_try = ["gemini-1.5-pro", "gemini-3.8-flash", "gemini-3.5-flash-lite"]
     else:
-        models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"]
+        models_to_try = ["gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-1.5-pro"]
 
     for idx, key in enumerate(valid_keys, 1):
         try:
@@ -643,7 +647,7 @@ def call_groq(prompt_content: str, custom_system_instruction: str) -> str:
     if not valid_keys:
         raise Exception("Groq API Keys සකසා නොමැත.")
     
-    groq_models = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"]
+    groq_models = ["llama-3.1-8b-instant", "llama-3.3-70b-specdec"]
 
     for idx, key in enumerate(valid_keys, 1):
         for model in groq_models:
