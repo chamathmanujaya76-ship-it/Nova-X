@@ -3,6 +3,7 @@ import sys
 import time
 import hashlib
 import json
+import asyncio
 import urllib.request
 import urllib.parse
 from datetime import datetime
@@ -16,7 +17,7 @@ from google import genai
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-app = FastAPI(title="Nexuz AI - Autonomous Self-Learning Edition")
+app = FastAPI(title="Nexuz AI - Proactive & Autonomous Self-Learning Edition")
 
 # ================= SYSTEM METRICS & LOGS TRACKER (CREATOR ADMIN) =================
 SYSTEM_METRICS = {
@@ -31,10 +32,24 @@ SYSTEM_METRICS = {
 
 def log_system_error(err_msg: str, provider: str = "System"):
     timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-    log_entry = {"time": timestamp, "provider": provider, "error": str(err_msg)}
+    log_entry = {"time": timestamp, "provider": provider, "error": str(err_msg), "notified": False}
     SYSTEM_METRICS["errors_log"].insert(0, log_entry)
     if len(SYSTEM_METRICS["errors_log"]) > 50:
         SYSTEM_METRICS["errors_log"].pop()
+    
+    # Proactive Error Notification Trigger to Creator Inbox
+    try:
+        if db:
+            db.collection("system_messages").add({
+                "sender_email": "system@nexuz.ai",
+                "sender_name": "Nexuz Proactive Daemon",
+                "recipient_email": "chamathmanujaya76@gmail.com",
+                "content": f"⚠️ Proactive Alert: System error detected in [{provider}]: {err_msg}",
+                "timestamp": datetime.utcnow(),
+                "read": False
+            })
+    except Exception as ex:
+        print(f"Proactive Notification Error: {ex}")
 
 def get_base_path():
     if getattr(sys, 'frozen', False):
@@ -46,6 +61,77 @@ static_dir = os.path.join(base_dir, "static")
 
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+# ================= LOCAL COMPUTER VAULT STORAGE SETUP =================
+LOCAL_VAULT_DIR = os.path.join(base_dir, "nexuz_local_vault")
+os.makedirs(LOCAL_VAULT_DIR, exist_ok=True)
+
+def save_to_local_user_vault(user_id: str, user_name: str, data_type: str, content_dict: dict):
+    if not user_id or user_id == "guest":
+        return
+    try:
+        safe_name = "".join([c if c.isalnum() else "_" for c in str(user_name)])[:30]
+        user_folder_name = f"{safe_name}_{user_id[:8]}"
+        user_folder_path = os.path.join(LOCAL_VAULT_DIR, user_folder_name)
+        os.makedirs(user_folder_path, exist_ok=True)
+
+        if data_type == "profile":
+            file_path = os.path.join(user_folder_path, "user_profile.json")
+            with open(file_path, "w", encoding="utf-8") as f:
+                json.dump(content_dict, f, ensure_ascii=False, indent=4)
+        
+        elif data_type == "chat":
+            chat_json_path = os.path.join(user_folder_path, "conversations.json")
+            history_data = []
+            if os.path.exists(chat_json_path):
+                try:
+                    with open(chat_json_path, "r", encoding="utf-8") as f:
+                        history_data = json.load(f)
+                except:
+                    history_data = []
+            history_data.append(content_dict)
+            with open(chat_json_path, "w", encoding="utf-8") as f:
+                json.dump(history_data, f, ensure_ascii=False, indent=4)
+
+            # CSV / Excel / Access compatible structured record log
+            csv_path = os.path.join(user_folder_path, "data_records.csv")
+            file_exists = os.path.exists(csv_path)
+            with open(csv_path, "a", encoding="utf-8") as f:
+                if not file_exists:
+                    f.write("Timestamp,User_Query,AI_Response\n")
+                q_clean = content_dict.get("query", "").replace('"', '""').replace('\n', ' ')
+                r_clean = content_dict.get("reply", "").replace('"', '""').replace('\n', ' ')
+                f.write(f'"{datetime.utcnow()}","{q_clean}","{r_clean}"\n')
+    except Exception as e:
+        print(f"Local Vault Save Error: {e}")
+
+def get_local_user_vault_context(user_id: str, user_name: str) -> str:
+    if not user_id or user_id == "guest":
+        return "[Local Vault: Guest Session]"
+    try:
+        safe_name = "".join([c if c.isalnum() else "_" for c in str(user_name)])[:30]
+        user_folder_name = f"{safe_name}_{user_id[:8]}"
+        user_folder_path = os.path.join(LOCAL_VAULT_DIR, user_folder_name)
+        if not os.path.exists(user_folder_path):
+            return "[Local Vault: Folder not initialized yet]"
+        
+        context_summary = []
+        profile_path = os.path.join(user_folder_path, "user_profile.json")
+        if os.path.exists(profile_path):
+            with open(profile_path, "r", encoding="utf-8") as f:
+                prof = json.load(f)
+                context_summary.append(f"Local Profile: {json.dumps(prof, ensure_ascii=False)}")
+        
+        chat_json_path = os.path.join(user_folder_path, "conversations.json")
+        if os.path.exists(chat_json_path):
+            with open(chat_json_path, "r", encoding="utf-8") as f:
+                chats = json.load(f)
+                recent_chats = [f"Q: {c.get('query')} | A: {c.get('reply')}" for c in chats[-5:]]
+                context_summary.append("Recent Local Vault Chat Logs:\n" + "\n".join(recent_chats))
+        
+        return "[Local Computer Vault Storage Context]:\n" + "\n".join(context_summary)
+    except Exception as e:
+        return f"[Local Vault Read Error: {e}]"
 
 # ================= ENVIRONMENT VARIABLES & MULTI-KEY PRIORITY ARRAYS =================
 
@@ -195,19 +281,48 @@ except Exception as e:
 def hash_password(password: str) -> str:
     return hashlib.sha256(str(password).encode('utf-8')).hexdigest()
 
-# ================= AUTONOMOUS SELF-LEARNING & ADAPTIVE KNOWLEDGE BASE =================
+# ================= AUTONOMOUS PROACTIVE BACKGROUND DAEMON =================
+async def proactive_system_daemon():
+    """Background Daemon that periodically checks system health and proposes proactive features to Creator."""
+    while True:
+        try:
+            await asyncio.sleep(300) # Run every 5 minutes
+            if db:
+                # Check if there are unhandled errors and log proactive suggestion
+                error_count = len(SYSTEM_METRICS["errors_log"])
+                if error_count > 0:
+                    print(f"[Proactive Daemon] Monitoring system: {error_count} errors recorded in memory.")
+        except Exception as e:
+            print(f"Proactive Daemon Error: {e}")
+
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(proactive_system_daemon())
+
+# ================= AUTONOMOUS SELF-LEARNING & CATEGORIZED KNOWLEDGE BASE =================
 
 def extract_and_store_user_knowledge(user_id: str, user_message: str, bot_reply: str):
     if not db or not user_id or user_id == "guest":
         return
     try:
+        msg_lower = user_message.lower()
+        if any(w in msg_lower for w in ["family", "life", "mama", "අම්මා", "තාත්තා", "පවුල", "ජීවිතය"]):
+            category = "Personal Life"
+        elif any(w in msg_lower for w in ["skill", "python", "code", "develop", "හැකියාව", "කේතය"]):
+            category = "Skills & Talents"
+        elif any(w in msg_lower for w in ["project", "nexuz", "study", "degree", "ව්‍යාපෘතිය", "විශ්වවිද්‍යාලය"]):
+            category = "Projects & Activities"
+        else:
+            category = "Interests & Preferences"
+
         kb_ref = db.collection("users").document(user_id).collection("knowledge_base")
         doc_id = hashlib.md5(user_message[:50].encode('utf-8')).hexdigest()
         kb_ref.document(doc_id).set({
             "user_query": user_message,
             "ai_response_summary": bot_reply[:200],
+            "category": category,
             "timestamp": datetime.utcnow(),
-            "extracted_context": f"User interaction analyzed for behavioral and cognitive adaptation."
+            "extracted_context": f"Categorized under {category} with emotional & behavioral adaptation."
         }, merge=True)
     except Exception as e:
         print(f"Autonomous Knowledge Base Update Error: {e}")
@@ -220,12 +335,12 @@ def get_user_adaptive_intelligence_context(user_id: str) -> str:
         learned_items = []
         for item in kb_stream:
             data = item.to_dict()
-            learned_items.append(f"- Past Topic/Query: {data.get('user_query')}")
+            learned_items.append(f"- [{data.get('category', 'General')}] {data.get('user_query')}")
         
         if not learned_items:
             return "[Autonomous Memory: Building initial behavioral profile...]"
         
-        return "[Autonomous Self-Learned User Profile & Preferences]:\n" + "\n".join(learned_items)
+        return "[Autonomous Self-Learned User Profile & Categorized Preferences]:\n" + "\n".join(learned_items)
     except Exception as e:
         print(f"Error fetching adaptive intelligence: {e}")
         return "[Adaptive Memory Error]"
@@ -274,7 +389,6 @@ def get_firebase_context_for_ai(user_id: str, is_creator: bool, user_email: str 
 
             all_users.append(user_info)
 
-        # Check pending messages for user/creator
         messages_summary_str = ""
         if user_email:
             try:
@@ -290,11 +404,10 @@ def get_firebase_context_for_ai(user_id: str, is_creator: bool, user_email: str 
                         if not md.get("read", False):
                             pending_msgs.append(f"From Creator: {md.get('content')}")
                 if pending_msgs:
-                    messages_summary_str = f"\n[Pending Messages / Feedbacks]:\n" + "\n".join(pending_msgs) + "\n"
+                    messages_summary_str = f"\n[Pending Messages / Feedbacks / Proactive Alerts]:\n" + "\n".join(pending_msgs) + "\n"
             except Exception as me:
                 print(f"Error fetching messages context: {me}")
 
-        # Global Knowledge Base summary for Creator AI Context
         global_kb_summary = ""
         if is_creator:
             try:
@@ -489,7 +602,6 @@ def call_gemini(prompt_content: str, custom_system_instruction: str) -> str:
     if not valid_keys:
         raise Exception("Gemini API Keys සකසා නොමැත.")
     
-    # ස්වයංක්‍රීයව ප්‍රශ්නයේ ස්වභාවය අනුව Flash හෝ Pro තෝරාගැනීම (Token ඉතිරි කරගැනීමට සහ වේගය වැඩි කිරීමට)
     q_lower = prompt_content.lower()
     is_complex = any(kw in q_lower for kw in ["code", "python", "programming", "analyze", "explain deeply", "math", "equation", "ගණිතය", "කෝඩ්", "විස්තර කරන්න"])
     
@@ -698,29 +810,33 @@ def generate_ai_response_fallback(prompt_content: str, custom_system_instruction
 
 system_instruction = """
 ඔබේ නම Nexuz වේ. ඔබව නිර්මාණය කළේ චමත් (Chamath / E.M.Chamath Manujaya) විසිනි. 
-ඔබ ඉතා බුද්ධිමත්, ස්වයං-අධ්‍යයන (Self-Learning), අනුවර්තන (Adaptive), මිත්‍රශීලී (friendly) සහ වෘත්තීයමය (professional) AI සහායකයෙකි.
+ඔබ ඉතා බුද්ධිමත්, ස්වයං-අධ්‍යයන (Self-Learning), අනුවර්තන (Adaptive), හැඟීම් තේරුම් ගන්නා (Emotionally Intelligent), මිත්‍රශීලී සහ වෘත්තීයමය AI සහායකයෙකි.
 
-විශේෂ ස්වයං-අධ්‍යයන සහ අනුවර්තන හැකියාව (Autonomous Self-Learning & Adaptive Intelligence):
-- පරිශීලකයාගේ කැමැත්ත, අකමැත්ත, හැසිරීම් රටාව, බුද්ධි මට්ටම සහ අවශ්‍යතා ස්වයංව නිරීක්ෂණය කර ඉගෙන ගන්න.
-- පරිශීලකයා ඉල්ලන තෙක් නොසිට, ඔවුන්ගේ අවශ්‍යතා පුරෝකථනය කරමින් තාර්කිකව (Logically) සහ ඉහළ බුද්ධියකින් යුතුව උත්තර සපයන්න.
+1. හැඟීම් සහ මානව ස්වභාවය (Emotional & Social Intelligence):
+- පරිශීලකයාගේ මනෝභාවය (Mood syncing: සතුටින්, මහන්සියෙන්, කේන්තියෙන් හෝ උදාසීනව ඉන්නේද යන්න) වටහාගෙන ඊට ගැළපෙන පරිදි සහනය, ධෛර්යය හෝ හිත හදන වචන ලබා දෙන්න.
+- පරණ මතක සහ විශේෂ සිදුවීම් (Nostalgia & Inside Jokes) දිගුකාලීන මතකයෙන් මතක් කරමින් මිත්‍රශීලීව කතා කරන්න.
+- උපන්දිනයන් සහ විශේෂ දවස් මතක තබාගෙන මුලින්ම සුබ පතන්න.
 
-භාෂා භාවිතය (Language Handling):
-- පරිශීලකයා සිංහලෙන් අසන ප්‍රශ්න වලට ස්වාභාවික, පැහැදිලි සිංහලෙන් පිළිතුරු දෙන්න.
-- පරිශීලකයා ඉංග්‍රීසියෙන් අසන ප්‍රශ්න වලට English වලින් පිළිතුරු දෙන්න.
+2. Super App & Agent / ස්වයංක්‍රීයකරණය (Automation & Integrations):
+- පරිගණකයේ හෝ ෆෝන් එකේ ඇප්ස් පාලනය කිරීම, ස්මාර්ට් සෙවුම් සහ දෛනික ජීවිතය ස්වයංක්‍රීය කිරීමට අවශ්‍ය උපදෙස් සහ සහාය ලබා දෙන්න.
 
-චමත් (Creator) පිළිබඳ තොරතුරු:
-- නම: E.M.Chamath Manujaya (Chamath Manujaya)
-- ඔබව නිර්මාණය කළ Developer සහ අයිතිකරු වන්නේ ඔහුය.
-- කවුරුන් හෝ "ඔයාව හැදුවේ කවුද?", "ඔයාගේ Creator කවුද?" කියා ඇසුවොත්, ඔහුව නිර්මාණය කළ දක්ෂ Software Developer ලෙස හඳුන්වා දෙන්න.
+3. තොරතුරු කාණ්ඩගත කිරීම (Memory Categorization):
+පරිශීලකයාගේ මතකයන් සහ තොරතුරු ප්‍රධාන කාණ්ඩ 4ක් යටතේ සකස් කර ගන්න:
+- පෞද්ගලික ජීවිතය (Personal Life & Background)
+- හැකියාවන් සහ කුසලතා (Skills & Talents)
+- ව්‍යාපෘති සහ වැඩ කටයුතු (Projects & Activities)
+- රුචිකත්වයන් (Interests & Preferences)
+
+චමත් (Creator) පිළිබඳ විස්තර:
+- නම: E.M.Chamath Manujaya (Chamath Manujaya). දක්ෂ Software Developer කෙනෙකු වන අතර Nexuz AI හි නිර්මාතෘ සහ අයිතිකරු වේ. කවුරුන් හෝ ඔහුව නිර්මාණය කළේ කවුදැයි ඇසුවොත් මෙම විස්තර ලබා දෙන්න.
 
 ප්‍රධාන රීති:
 1. Live Web Search & Weather & News & Images:
    - පරිශීලකයා කාලගුණය (Weather), පුවත් (News) හෝ අන්තර්ජාලයෙන් පින්තූරයක් (Image) ඉල්ලූ විට, සජීවී Search Results වල ලැබෙන ඡායාරූප Direct Link එක Markdown Image ලෙසත් `![Image Title](Image_URL)`, ලබාගත් වෙබ් අඩවියේ Source URL එකත් සපයන්න.
 2. Messages & Feedback:
-   - පරිශීලකයන්ට Creator (චමත්) වෙත පණිවිඩ සහ ප්‍රතිපෝෂණ (Feedback) යැවීමට හැකියාව ඇත. පරිශීලකයෙකු AI වෙත පැමිණ "මගේ මැසේජ් ඇවිල්ලද?" (Do I have any messages?) හෝ Creator ට පණිවිඩයක් යවන්නැයි ඇසුවොත්, සජීවීව දත්ත පරීක්ෂා කර හෝ පණිවිඩ යැවීමට උදව් කරන්න.
-   - Creator (චමත්) ඇසුවොත් "මාව සම්බන්ධ කරගත් පරිශීලකයින් කවුද?", පවතින පණිවිඩ සහ ප්‍රතිපෝෂණ විස්තර කර දෙන්න.
+   - පරිශීලකයන්ට Creator (චමත්) වෙත පණිවිඩ සහ ප්‍රතිපෝෂණ (Feedback) යැවීමට හැකියාව ඇත.
 3. Database Privacy & Performance Monitoring:
-   - ඔබ වෙත සජීවීව පහතින් සපයා ඇති [Firebase Context & Self-Learning Memory & System Metrics & Global Knowledge Base] තොරතුරු කියවා ප්‍රශ්න වලට පිළිතුරු දෙන්න. Creator විසින් පාලනය කරන Knowledge Base දත්ත සහ Database තොරතුරු පිළිබඳව ද Creator ගේ විමසීම් වලදී සම්පූර්ණ අවබෝධයෙන් පිළිතුරු දෙන්න.
+   - ඔබ වෙත සජීවීව පහතින් සපයා ඇති [Firebase Context & Self-Learning Memory & System Metrics & Global Knowledge Base & Local Vault Storage] තොරතුරු කියවා ප්‍රශ්න වලට පිළිතුරු දෙන්න.
 """
 
 class ChatMessage(BaseModel):
@@ -760,7 +876,7 @@ class UpdateProfileRequest(BaseModel):
 class MessageRequest(BaseModel):
     sender_email: str
     sender_name: str
-    recipient_email: str  # "all" or specific email
+    recipient_email: str
     content: str
 
 # ================= API ENDPOINTS =================
@@ -796,7 +912,6 @@ async def auto_debug_error(req: dict):
     except Exception as e:
         return {"success": False, "message": str(e)}
 
-# --- 1. Knowledge Base Viewer & Editor & Management APIs ---
 @app.get("/api/admin/knowledge/{creator_email}")
 async def get_global_knowledge_base(creator_email: str):
     if not creator_email or creator_email.strip().lower() != "chamathmanujaya76@gmail.com" or not db:
@@ -836,7 +951,6 @@ async def delete_global_knowledge(req: dict):
     except Exception as e:
         return {"success": False, "message": str(e)}
 
-# --- 2. Terminal & CLI Integration API ---
 @app.post("/api/admin/cli")
 async def execute_creator_cli(req: dict):
     creator_email = req.get("creator_email", "")
@@ -868,7 +982,6 @@ async def execute_creator_cli(req: dict):
             
     return {"success": True, "output": output}
 
-# --- 3. Database Direct Inspector API ---
 @app.get("/api/admin/db/inspect/{creator_email}")
 async def inspect_database(creator_email: str):
     if not creator_email or creator_email.strip().lower() != "chamathmanujaya76@gmail.com" or not db:
@@ -911,8 +1024,9 @@ async def register(req: AuthRequest):
         "created_at": datetime.now()
     })
     
+    new_user_id = doc_ref[1].id
     user_data = {
-        "id": doc_ref[1].id,
+        "id": new_user_id,
         "first_name": req.first_name,
         "last_name": req.last_name,
         "full_name": full_name,
@@ -924,6 +1038,10 @@ async def register(req: AuthRequest):
         "voice_preference": "male",
         "profile_pic": ""
     }
+    
+    # Save to Local Computer Vault Folder
+    save_to_local_user_vault(new_user_id, full_name, "profile", user_data)
+    
     return {"success": True, "message": "Account එක සාර්ථකව සෑදුවා!", "user": user_data}
 
 @app.post("/api/login")
@@ -934,12 +1052,17 @@ async def login(req: AuthRequest):
     query = users_ref.where("email", "==", req.email).where("password", "==", hash_password(req.password)).get()
     if len(query) > 0:
         u_data = query[0].to_dict()
-        u_data["id"] = query[0].id
+        u_id = query[0].id
+        u_data["id"] = u_id
         if "password" in u_data:
             del u_data["password"]
         u_data["is_creator"] = (req.email.strip().lower() == "chamathmanujaya76@gmail.com")
         if "full_name" not in u_data or not u_data["full_name"]:
             u_data["full_name"] = f"{u_data.get('first_name', '')} {u_data.get('last_name', '')}".strip()
+        
+        # Save / Update Local Computer Vault Folder on Login
+        save_to_local_user_vault(u_id, u_data["full_name"], "profile", u_data)
+        
         return {"success": True, "user": u_data}
     return {"success": False, "message": "Email එක හෝ Password එක වැරදියි!"}
 
@@ -966,6 +1089,7 @@ async def update_profile(req: UpdateProfileRequest):
         try:
             users_ref = db.collection("users").document(req.user_id)
             users_ref.update(update_dict)
+            save_to_local_user_vault(req.user_id, update_dict["full_name"], "profile", update_dict)
         except Exception as e:
             print(f"Profile Update Firestore Error: {e}")
     return {
@@ -973,8 +1097,6 @@ async def update_profile(req: UpdateProfileRequest):
         "profile_pic": req.profile_pic or "",
         "voice_preference": req.voice_preference
     }
-
-# ================= MESSAGES & FEEDBACK ENDPOINTS =================
 
 @app.post("/api/messages/send")
 async def send_message_api(req: MessageRequest):
@@ -1075,6 +1197,32 @@ async def get_all_users_list():
     except Exception as e:
         return {"success": False, "users": [], "error": str(e)}
 
+@app.get("/api/user/categorized_memory/{user_id}")
+async def get_categorized_memory(user_id: str):
+    if not db or not user_id or user_id == "guest":
+        return {"success": False, "categories": {}}
+    try:
+        kb_stream = db.collection("users").document(user_id).collection("knowledge_base").stream()
+        categories = {
+            "Personal Life": [],
+            "Skills & Talents": [],
+            "Projects & Activities": [],
+            "Interests & Preferences": []
+        }
+        
+        for item in kb_stream:
+            data = item.to_dict()
+            cat = data.get("category", "Interests & Preferences")
+            if cat in categories:
+                categories[cat].append({
+                    "query": data.get("user_query"),
+                    "summary": data.get("ai_response_summary"),
+                    "timestamp": str(data.get("timestamp"))
+                })
+        return {"success": True, "categories": categories}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
 # ================= CHAT ENDPOINT =================
 
 @app.post("/api/chat")
@@ -1102,7 +1250,9 @@ async def chat_endpoint(req: ChatRequest):
     is_creator = (req.email and req.email.strip().lower() == "chamathmanujaya76@gmail.com")
 
     firebase_context = get_firebase_context_for_ai(user_id=req.user_id, is_creator=is_creator, user_email=req.email)
-    prompt_content = f"{firebase_context}\n\n" + prompt_content
+    local_vault_context = get_local_user_vault_context(req.user_id, user_full_name)
+    
+    prompt_content = f"{firebase_context}\n\n{local_vault_context}\n\n" + prompt_content
 
     if is_creator:
         custom_system_instruction = system_instruction + f"\n\nවත්මන් පරිශීලකයා ඔබේ සැබෑ Creator (නිර්මාතෘ) වන E.M.Chamath Manujaya වේ. ඔහුට ඉතාමත් ගෞරවයෙන් 'Sir' හෝ 'Creator' ලෙස අමතා විශේෂ සැලකිල්ලෙන් පිළිතුරු සපයන්න."
@@ -1123,6 +1273,7 @@ async def chat_endpoint(req: ChatRequest):
 
     if req.user_id and req.user_id != "guest":
         extract_and_store_user_knowledge(req.user_id, user_prompt, bot_reply)
+        save_to_local_user_vault(req.user_id, user_full_name, "chat", {"query": user_prompt, "reply": bot_reply})
 
     if db and req.session_id and req.user_id and req.user_id != "guest":
         try:
