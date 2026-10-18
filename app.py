@@ -10,12 +10,13 @@ from datetime import datetime
 from typing import Optional, List
 from fastapi import FastAPI, Request, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, StreamingResponse
 from pydantic import BaseModel
 from duckduckgo_search import DDGS
 from google import genai
 import firebase_admin
 from firebase_admin import credentials, firestore
+import edge_tts
 
 app = FastAPI(title="Nexuz AI - Proactive & Autonomous Self-Learning Edition")
 
@@ -23,7 +24,7 @@ app = FastAPI(title="Nexuz AI - Proactive & Autonomous Self-Learning Edition")
 SYSTEM_METRICS = {
     "api_calls_count": {
         "Gemini": 0, "Groq": 0, "OpenRouter": 0, "Cerebras": 0, 
-        "Together": 0, "DeepInfra": 0, "Cohere": 0, "Tavily": 0, "SerpAPI": 0
+        "Together": 0, "DeepInfra": 0, "Cohere": 0, "Tavily": 0, "SerpAPI": 0, "EdgeTTS": 0
     },
     "response_times": [],
     "errors_log": [],
@@ -37,7 +38,6 @@ def log_system_error(err_msg: str, provider: str = "System"):
     if len(SYSTEM_METRICS["errors_log"]) > 50:
         SYSTEM_METRICS["errors_log"].pop()
     
-    # Proactive Error Notification Trigger to Creator Inbox
     try:
         if db:
             db.collection("system_messages").add({
@@ -101,7 +101,6 @@ def save_to_local_user_vault(user_id: str, user_name: str, data_type: str, conte
             with open(chat_json_path, "w", encoding="utf-8") as f:
                 json.dump(history_data, f, ensure_ascii=False, indent=4)
 
-            # CSV / Excel / Access compatible structured record log
             csv_path = os.path.join(user_folder_path, "data_records.csv")
             file_exists = os.path.exists(csv_path)
             with open(csv_path, "a", encoding="utf-8") as f:
@@ -219,8 +218,6 @@ OPENROUTER_KEYS = [
     os.environ.get("OPENROUTER_API_KEY")
 ]
 
-# ================= SEARCH APIS & KEYS (PRIORITY ORDER) =================
-
 TAVILY_KEYS = [
     os.environ.get("TAVILY_API_KEY_1"),
     os.environ.get("TAVILY_API_KEY_2"),
@@ -291,10 +288,9 @@ def hash_password(password: str) -> str:
 
 # ================= AUTONOMOUS PROACTIVE BACKGROUND DAEMON =================
 async def proactive_system_daemon():
-    """Background Daemon that periodically checks system health and proposes proactive features to Creator."""
     while True:
         try:
-            await asyncio.sleep(300) # Run every 5 minutes
+            await asyncio.sleep(300)
             if db:
                 error_count = len(SYSTEM_METRICS["errors_log"])
                 if error_count > 0:
@@ -351,8 +347,6 @@ def get_user_adaptive_intelligence_context(user_id: str) -> str:
     except Exception as e:
         print(f"Error fetching adaptive intelligence: {e}")
         return "[Adaptive Memory Error]"
-
-# ================= HELPER FUNCTIONS FOR FIREBASE AI CONTEXT =================
 
 def get_firebase_context_for_ai(user_id: str, is_creator: bool, user_email: str = "") -> str:
     if not db:
@@ -450,7 +444,7 @@ def get_firebase_context_for_ai(user_id: str, is_creator: bool, user_email: str 
         print(f"Error generating Firebase AI Context: {e}")
         return "[Firebase Context Error: Failed to fetch live stats]"
 
-# ================= MULTI-KEY PRIORITY SEARCH PROVIDERS =================
+# ================= SEARCH PROVIDERS =================
 
 def search_tavily(query: str) -> str:
     valid_keys = [k.strip() for k in TAVILY_KEYS if k and k.strip()]
@@ -607,7 +601,7 @@ def web_search(query: str) -> str:
             print(f"Search Provider [{provider_name}] Failed: {e}")
     return ""
 
-# ================= MULTI-KEY PRIORITY AI MODEL PROVIDERS & FALLBACK =================
+# ================= AI MODEL PROVIDERS & FALLBACK =================
 
 def call_gemini(prompt_content: str, custom_system_instruction: str) -> str:
     valid_keys = [k.strip() for k in GEMINI_KEYS if k and k.strip()]
@@ -891,6 +885,10 @@ class MessageRequest(BaseModel):
     recipient_email: str
     content: str
 
+class TTSRequest(BaseModel):
+    text: str
+    voice: Optional[str] = "male"
+
 # ================= API ENDPOINTS =================
 
 @app.get("/", response_class=HTMLResponse)
@@ -900,7 +898,36 @@ async def serve_index():
         return FileResponse(index_path)
     return HTMLResponse("<h2>Nexuz Backend is Running Successfully!</h2>")
 
-# ================= CREATOR ADMIN METRICS & ADMIN DASHBOARD ENDPOINTS =================
+# ================= EDGE-TTS HYBRID VOICE ENDPOINT =================
+@app.post("/api/tts")
+async def text_to_speech_edge(req: TTSRequest):
+    if not req.text or not req.text.strip():
+        raise HTTPException(status_code=400, detail="Text is required")
+    
+    # Select Sinhala Neural Voice based on preference
+    voice_name = "lk-LK-ThiliniNeural" if req.voice == "female" else "lk-LK-SameeraNeural"
+    
+    try:
+        communicate = edge_tts.Communicate(req.text, voice_name)
+        temp_audio_path = os.path.join(LOCAL_VAULT_DIR, f"tts_{hashlib.md5(req.text.encode('utf-8')).hexdigest()}.mp3")
+        await communicate.save(temp_audio_path)
+        
+        SYSTEM_METRICS["api_calls_count"]["EdgeTTS"] += 1
+        
+        def iterfile():
+            with open(temp_audio_path, mode="rb") as file_like:
+                yield from file_like
+            try:
+                os.remove(temp_audio_path)
+            except:
+                pass
+
+        return StreamingResponse(iterfile(), media_type="audio/mpeg")
+    except Exception as e:
+        log_system_error(str(e), "EdgeTTS")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ================= CREATOR ADMIN & METRICS ENDPOINTS =================
 
 @app.get("/api/admin/metrics/{creator_email}")
 async def get_admin_metrics(creator_email: str):

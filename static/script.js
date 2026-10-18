@@ -1398,54 +1398,68 @@ function cleanTextForSpeech(text) {
         .trim();
 }
 
-function speakText(text, onCompleteCallback = null) {
-    if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-        
-        if (recognition) {
-            try {
-                recognition.onresult = null;
-                recognition.onerror = null;
-                recognition.onend = null;
-                recognition.abort();
-            } catch(e){}
-            recognition = null;
-        }
-        isRecognitionRunning = false;
-        
-        const cleanedText = cleanTextForSpeech(text);
-        const utterance = new SpeechSynthesisUtterance(cleanedText);
-        utterance.rate = 1.0;
-        utterance.lang = "si-LK";
+async function speakText(text, onCompleteCallback = null) {
+    if (!text || !text.trim()) {
+        if (onCompleteCallback) onCompleteCallback();
+        return;
+    }
 
-        utterance.onstart = () => { isAiSpeaking = true; };
-        utterance.onend = () => { 
-            isAiSpeaking = false; 
-            if (onCompleteCallback) onCompleteCallback();
-        };
-        utterance.onerror = () => {
+    if (recognition) {
+        try {
+            recognition.onresult = null;
+            recognition.onerror = null;
+            recognition.onend = null;
+            recognition.abort();
+        } catch(e){}
+        recognition = null;
+    }
+    isRecognitionRunning = false;
+    isAiSpeaking = true;
+
+    const cleanedText = cleanTextForSpeech(text);
+    const selectedGender = (currentUser && currentUser.voice_preference) ? currentUser.voice_preference : "male";
+
+    try {
+        const response = await fetch("/api/tts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: cleanedText, voice: selectedGender })
+        });
+
+        if (!response.ok) throw new Error("TTS generation failed");
+
+        const blob = await response.blob();
+        const audioUrl = URL.createObjectURL(blob);
+        const audio = new Audio(audioUrl);
+
+        audio.onended = () => {
             isAiSpeaking = false;
             if (onCompleteCallback) onCompleteCallback();
         };
 
-        const selectedGender = (currentUser && currentUser.voice_preference) ? currentUser.voice_preference : "male";
-        const voices = window.speechSynthesis.getVoices();
+        audio.onerror = () => {
+            isAiSpeaking = false;
+            if (onCompleteCallback) onCompleteCallback();
+        };
 
-        if (voices.length > 0) {
-            let matchedVoice = voices.find(v => v.lang && v.lang.toLowerCase().includes("si")) || null;
-            if (!matchedVoice) {
-                if (selectedGender === "female") {
-                    matchedVoice = voices.find(v => v.name.includes("Female") || v.name.includes("Zira") || v.name.includes("Google UK English Female") || v.name.includes("Samantha") || v.name.includes("Victoria") || v.name.includes("Karen"));
-                } else {
-                    matchedVoice = voices.find(v => v.name.includes("Male") || v.name.includes("David") || v.name.includes("Google UK English Male") || v.name.includes("Alex") || v.name.includes("George"));
-                }
-            }
-            if (matchedVoice) utterance.voice = matchedVoice;
+        await audio.play();
+    } catch (e) {
+        console.error("Edge TTS playback error, falling back to Web Speech API:", e);
+        // Fallback to Web Speech API if network fails
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(cleanedText);
+            utterance.rate = 1.0;
+            utterance.lang = "si-LK";
+            utterance.onend = utterance.onerror = () => {
+                isAiSpeaking = false;
+                if (onCompleteCallback) onCompleteCallback();
+            };
+            window.speechSynthesis.speak(utterance);
+        } else {
+            isAiSpeaking = false;
+            if (onCompleteCallback) onCompleteCallback();
         }
-
-        window.speechSynthesis.speak(utterance);
-    } else {
-        if (onCompleteCallback) onCompleteCallback();
     }
 }
 

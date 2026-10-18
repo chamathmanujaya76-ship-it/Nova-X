@@ -3,6 +3,6 @@ uvicorn
 google-genai
 duckduckgo-search
 firebase-admin
-gTTS
+edge-tts
 python-multipart
 pydantic
