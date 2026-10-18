@@ -12,7 +12,6 @@ from fastapi import FastAPI, Request, HTTPException, WebSocket, WebSocketDisconn
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
 from pydantic import BaseModel
-from duckduckgo_search import DDGS
 from google import genai
 import firebase_admin
 from firebase_admin import credentials, firestore
@@ -37,7 +36,6 @@ def log_system_error(err_msg: str, provider: str = "System"):
     if len(SYSTEM_METRICS["errors_log"]) > 50:
         SYSTEM_METRICS["errors_log"].pop()
     
-    # Proactive Error Notification Trigger to Creator Inbox
     try:
         if db:
             db.collection("system_messages").add({
@@ -62,9 +60,17 @@ static_dir = os.path.join(base_dir, "static")
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
-# ================= LOCAL COMPUTER VAULT STORAGE SETUP =================
-LOCAL_VAULT_DIR = os.path.join(base_dir, "nexuz_local_vault")
-os.makedirs(LOCAL_VAULT_DIR, exist_ok=True)
+# ================= LOCAL COMPUTER VAULT STORAGE SETUP (VERCEL SAFE /TMP) =================
+IS_VERCEL = os.environ.get("VERCEL", "0") == "1" or os.environ.get("VERCEL_ENV") is not None
+if IS_VERCEL:
+    LOCAL_VAULT_DIR = "/tmp/nexuz_local_vault"
+else:
+    LOCAL_VAULT_DIR = os.path.join(base_dir, "nexuz_local_vault")
+
+try:
+    os.makedirs(LOCAL_VAULT_DIR, exist_ok=True)
+except Exception as e:
+    print(f"Vault folder setup info: {e}")
 
 def save_to_local_user_vault(user_id: str, user_name: str, data_type: str, content_dict: dict):
     if not user_id or user_id == "guest":
@@ -93,7 +99,6 @@ def save_to_local_user_vault(user_id: str, user_name: str, data_type: str, conte
             with open(chat_json_path, "w", encoding="utf-8") as f:
                 json.dump(history_data, f, ensure_ascii=False, indent=4)
 
-            # CSV / Excel / Access compatible structured record log
             csv_path = os.path.join(user_folder_path, "data_records.csv")
             file_exists = os.path.exists(csv_path)
             with open(csv_path, "a", encoding="utf-8") as f:
@@ -283,12 +288,10 @@ def hash_password(password: str) -> str:
 
 # ================= AUTONOMOUS PROACTIVE BACKGROUND DAEMON =================
 async def proactive_system_daemon():
-    """Background Daemon that periodically checks system health and proposes proactive features to Creator."""
     while True:
         try:
-            await asyncio.sleep(300) # Run every 5 minutes
+            await asyncio.sleep(300)
             if db:
-                # Check if there are unhandled errors and log proactive suggestion
                 error_count = len(SYSTEM_METRICS["errors_log"])
                 if error_count > 0:
                     print(f"[Proactive Daemon] Monitoring system: {error_count} errors recorded in memory.")
@@ -555,25 +558,30 @@ def search_exa(query: str) -> str:
     raise Exception("සියලුම Exa Keys අසාර්ථක විය.")
 
 def search_ddg(query: str) -> str:
-    results = []
-    clean_query = query.strip()
-    with DDGS() as ddgs:
-        for r in ddgs.text(clean_query, max_results=3):
-            title = r.get('title', '')
-            snippet = r.get('body', '')
-            link = r.get('href', '')
-            if title or snippet:
-                results.append(f"📌 Title: {title}\nSnippet: {snippet}\nSource Link: {link}")
-        try:
-            img_results = ddgs.images(clean_query, max_results=2)
-            if img_results:
-                results.append("\n🖼️ Found Web Images:")
-                for img in img_results:
-                    if img.get('image'):
-                        results.append(f"Image Title: {img.get('title', 'Image')}\nImage URL: {img.get('image')}\nSource URL: {img.get('url', '')}")
-        except Exception as img_err:
-            log_system_error(f"DDG Image Search Error: {img_err}", "DDG")
-    return "\n\n".join(results)
+    try:
+        from duckduckgo_search import DDGS
+        results = []
+        clean_query = query.strip()
+        with DDGS() as ddgs:
+            for r in ddgs.text(clean_query, max_results=3):
+                title = r.get('title', '')
+                snippet = r.get('body', '')
+                link = r.get('href', '')
+                if title or snippet:
+                    results.append(f"📌 Title: {title}\nSnippet: {snippet}\nSource Link: {link}")
+            try:
+                img_results = ddgs.images(clean_query, max_results=2)
+                if img_results:
+                    results.append("\n🖼️ Found Web Images:")
+                    for img in img_results:
+                        if img.get('image'):
+                            results.append(f"Image Title: {img.get('title', 'Image')}\nImage URL: {img.get('image')}\nSource URL: {img.get('url', '')}")
+            except Exception as img_err:
+                log_system_error(f"DDG Image Search Error: {img_err}", "DDG")
+        return "\n\n".join(results)
+    except Exception as err:
+        log_system_error(f"DDG Search Error: {err}", "DDG")
+        return ""
 
 def web_search(query: str) -> str:
     if not query or len(query.strip()) < 2:
@@ -606,9 +614,9 @@ def call_gemini(prompt_content: str, custom_system_instruction: str) -> str:
     is_complex = any(kw in q_lower for kw in ["code", "python", "programming", "analyze", "explain deeply", "math", "equation", "ගණිතය", "කෝඩ්", "විස්තර කරන්න"])
     
     if is_complex:
-        models_to_try = ["gemini-1.5-pro", "gemini-3.8-flash", "gemini-3.5-flash-lite"]
+        models_to_try = ["gemini-1.5-pro", "gemini-2.5-flash", "gemini-2.0-flash"]
     else:
-        models_to_try = ["gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-1.5-pro"]
+        models_to_try = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-pro"]
 
     for idx, key in enumerate(valid_keys, 1):
         try:
@@ -635,7 +643,7 @@ def call_groq(prompt_content: str, custom_system_instruction: str) -> str:
     if not valid_keys:
         raise Exception("Groq API Keys සකසා නොමැත.")
     
-    groq_models = ["llama-3.1-8b-instant", "llama-3.3-70b-specdec"]
+    groq_models = ["llama-3.1-8b-instant", "llama-3.3-70b-versatile"]
 
     for idx, key in enumerate(valid_keys, 1):
         for model in groq_models:
@@ -1039,9 +1047,7 @@ async def register(req: AuthRequest):
         "profile_pic": ""
     }
     
-    # Save to Local Computer Vault Folder
     save_to_local_user_vault(new_user_id, full_name, "profile", user_data)
-    
     return {"success": True, "message": "Account එක සාර්ථකව සෑදුවා!", "user": user_data}
 
 @app.post("/api/login")
@@ -1060,9 +1066,7 @@ async def login(req: AuthRequest):
         if "full_name" not in u_data or not u_data["full_name"]:
             u_data["full_name"] = f"{u_data.get('first_name', '')} {u_data.get('last_name', '')}".strip()
         
-        # Save / Update Local Computer Vault Folder on Login
         save_to_local_user_vault(u_id, u_data["full_name"], "profile", u_data)
-        
         return {"success": True, "user": u_data}
     return {"success": False, "message": "Email එක හෝ Password එක වැරදියි!"}
 
