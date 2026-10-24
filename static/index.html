@@ -217,23 +217,35 @@
                     </div>
 
                     <div class="tab-content" id="tab-nexuz-voice" style="display: none;">
-                        <div class="form-group">
-                            <label>AI Voice Gender Selection</label>
-                            <select id="voiceSelect">
-                                <option value="male">Male Voice (පිරිමි හඬ)</option>
-                                <option value="female">Female Voice (ගැහැණු හඬ)</option>
-                            </select>
-                        </div>
+                        <form onsubmit="saveSettings(event)" class="auth-form">
+                            <div class="form-group">
+                                <label>Live Voice Mode Display Type</label>
+                                <select id="displayTypeSelect">
+                                    <option value="face">Sci-Fi AI Particle Face (3D)</option>
+                                    <option value="visualizer">Classic Voice Visualizer</option>
+                                </select>
+                            </div>
 
-                        <div class="form-group" style="margin-top: 15px;">
-                            <label>Voice Model Style</label>
-                            <select id="voiceStyleSelect">
-                                <option value="nova">Nova (Natural & Soft)</option>
-                                <option value="echo">Echo (Warm & Clear)</option>
-                                <option value="onyx">Onyx (Deep & Professional)</option>
-                                <option value="breeze">Breeze (Energetic)</option>
-                            </select>
-                        </div>
+                            <div class="form-group" style="margin-top: 15px;">
+                                <label>AI Voice Gender Selection</label>
+                                <select id="voiceSelect">
+                                    <option value="male">Male Voice (පිරිමි හඬ)</option>
+                                    <option value="female">Female Voice (ගැහැණු හඬ)</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group" style="margin-top: 15px;">
+                                <label>Voice Model Style</label>
+                                <select id="voiceStyleSelect">
+                                    <option value="nova">Nova (Natural & Soft)</option>
+                                    <option value="echo">Echo (Warm & Clear)</option>
+                                    <option value="onyx">Onyx (Deep & Professional)</option>
+                                    <option value="breeze">Breeze (Energetic)</option>
+                                </select>
+                            </div>
+
+                            <button type="submit" class="auth-btn" style="margin-top: 20px;">Save Voice Settings</button>
+                        </form>
                     </div>
 
                     <div class="tab-content" id="tab-notifications" style="display: none;">
@@ -482,6 +494,13 @@
         <div class="sci-fi-stage">
             <div class="orb-visualizer-container" id="orbContainer">
                 <canvas id="threeGlowCanvas"></canvas>
+                <div id="classicVisualizerBox" class="classic-visualizer-bars" style="display: none;">
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                    <div class="bar"></div>
+                </div>
             </div>
             <div class="voice-status-text" id="liveVoiceStatus">සවන්දෙමින් පවතී... කතා කරන්න...</div>
             <div class="transcript-preview" id="liveTranscript"></div>

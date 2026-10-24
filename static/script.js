@@ -19,7 +19,7 @@ let animFrameId = null;
 
 let scene, camera, renderer, particleSystem;
 let glowRingLine, glowRingGeometry;
-let numParticles = 5000;
+let numParticles = 6000;
 let particlePositions, originalPositions, targetPositions;
 let isAiSpeaking = false;
 let aiVoiceWaveTime = 0;
@@ -616,6 +616,11 @@ function openSettingsModal() {
         if (voiceSelect) {
             voiceSelect.value = currentUser.voice_preference || "male";
         }
+
+        const displayTypeSelect = document.getElementById("displayTypeSelect");
+        if (displayTypeSelect) {
+            displayTypeSelect.value = currentUser.display_type || "face";
+        }
         
         const preview = document.getElementById("settingsAvatarPreview");
         const defaultIcon = document.getElementById("settingsDefaultAvatarIcon");
@@ -669,6 +674,7 @@ async function saveSettings(e) {
     const newPurpose = document.getElementById("setPurpose").value.trim();
     const newPassword = document.getElementById("setPassword").value.trim();
     const voicePref = document.getElementById("voiceSelect") ? document.getElementById("voiceSelect").value : "male";
+    const displayType = document.getElementById("displayTypeSelect") ? document.getElementById("displayTypeSelect").value : "face";
     const preview = document.getElementById("settingsAvatarPreview");
     const newPic = preview.dataset.base64 || currentUser.profile_pic || "";
 
@@ -685,6 +691,7 @@ async function saveSettings(e) {
                 purpose: newPurpose,
                 password: newPassword,
                 voice_preference: voicePref,
+                display_type: displayType,
                 profile_pic: newPic
             })
         });
@@ -698,12 +705,13 @@ async function saveSettings(e) {
             currentUser.country = newCountry;
             currentUser.purpose = newPurpose;
             currentUser.voice_preference = voicePref;
+            currentUser.display_type = displayType;
             currentUser.profile_pic = newPic;
 
             localStorage.setItem("nexuz_user_data", JSON.stringify(currentUser));
             updateSidebarUserDisplay();
             closeSettingsModal();
-            alert("Profile Settings සාර්ථකව සුරකින ලදී!");
+            alert("Settings සාර්ථකව සුරකින ලදී!");
         }
     } catch (err) {
         alert("Settings සුරැකීමට නොහැකි විය!");
@@ -1152,8 +1160,8 @@ function createGlowTexture() {
     const ctx = canvas.getContext('2d');
     const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
     gradient.addColorStop(0, 'rgba(255,255,255,1)');
-    gradient.addColorStop(0.3, 'rgba(160,32,240,0.8)');
-    gradient.addColorStop(0.7, 'rgba(123,0,255,0.3)');
+    gradient.addColorStop(0.25, 'rgba(123,0,255,0.9)');
+    gradient.addColorStop(0.65, 'rgba(0,68,255,0.4)');
     gradient.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, 64, 64);
@@ -1172,12 +1180,15 @@ function initThreeGlowVisualizer() {
     }
 
     scene = new THREE.Scene();
-    camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
-    camera.position.z = 280;
+    camera = new THREE.PerspectiveCamera(45, window.innerWidth <= 768 ? 1 : 1.2, 0.1, 1000);
+    camera.position.z = 240;
+
+    const canvasWidth = window.innerWidth <= 768 ? 320 : 500;
+    const canvasHeight = window.innerWidth <= 768 ? 320 : 450;
 
     renderer = new THREE.WebGLRenderer({ canvas: canvasElem, alpha: true, antialias: true });
-    renderer.setSize(380, 380);
-    renderer.setPixelRatio(window.devicePixelRatio ? window.devicePixelRatio : 1);
+    renderer.setSize(canvasWidth, canvasHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
     const geometry = new THREE.BufferGeometry();
     particlePositions = new Float32Array(numParticles * 3);
@@ -1186,12 +1197,12 @@ function initThreeGlowVisualizer() {
 
     const isFemale = currentUser && currentUser.voice_preference === "female";
 
-    // Procedural 3D Particle Face Mesh Coordinates Generator
+    // Accurate 3D Anatomical Human Head & Face Particle Grid Topology
     for (let i = 0; i < numParticles; i++) {
-        // Start scattered in outer space (dust/starfield)
+        // Scattered initial starfield outer sphere
         const startTheta = Math.random() * Math.PI * 2;
         const startPhi = Math.acos((Math.random() * 2) - 1);
-        const startR = 250 + Math.random() * 150;
+        const startR = 220 + Math.random() * 120;
         
         const sx = startR * Math.sin(startPhi) * Math.cos(startTheta);
         const sy = startR * Math.sin(startPhi) * Math.sin(startTheta);
@@ -1205,33 +1216,36 @@ function initThreeGlowVisualizer() {
         particlePositions[i * 3 + 1] = sy;
         particlePositions[i * 3 + 2] = sz;
 
-        // Target Face Shape Coordinates (Male vs Female proportions)
-        let fx, fy, fz;
-        const u = (Math.random() - 0.5) * 120;
-        const v = (Math.random() - 0.5) * 160;
-
-        // Facial contour modeling equations
-        const faceWidth = isFemale ? 55 : 65;
-        const chinWidth = isFemale ? 25 : 35;
+        // Accurate 3D Head Spherical Point Cloud & Facial Mesh Transformation
+        const v = (Math.random() - 0.5) * 160; // Height (-80 to 80)
+        const phi = (Math.random() - 0.5) * Math.PI * 0.95; // Angle (-85 to +85 deg)
         
-        if (v > 40) { // Crown / Head top
-            const theta = Math.random() * Math.PI * 2;
-            const r = faceWidth * (0.8 + Math.random() * 0.2);
-            fx = Math.cos(theta) * r;
-            fy = 60 + Math.sin(theta) * (r * 0.7);
-            fz = (Math.random() - 0.5) * 50;
-        } else if (v > -20 && v <= 40) { // Eyes, Nose, Cheeks
-            fx = u;
+        let radius = 62; // Base skull radius
+        let fx, fy, fz;
+
+        if (v > 20) { // Forehead & Skull Top
+            radius = (isFemale ? 58 : 64) * Math.cos((v - 20) / 100);
+            fx = Math.sin(phi) * radius;
             fy = v;
-            fz = Math.cos(u / 40) * 35 - Math.abs(v / 8);
-        } else if (v > -70 && v <= -20) { // Mouth & Jaw
-            fx = u * 0.8;
+            fz = Math.cos(phi) * radius * 0.95;
+        } else if (v > -35 && v <= 20) { // Mid Face (Cheeks, Eyes, Nose)
+            const noseBump = (Math.abs(phi) < 0.25 && v > -10 && v < 10) ? 18 : 0;
+            const eyeSocket = (Math.abs(phi) > 0.2 && Math.abs(phi) < 0.55 && v > 2 && v < 18) ? -8 : 0;
+            radius = (isFemale ? 56 : 62) + noseBump + eyeSocket;
+            fx = Math.sin(phi) * radius;
             fy = v;
-            fz = Math.sin(u / 30) * 25 + 10;
+            fz = Math.cos(phi) * radius;
+        } else if (v > -65 && v <= -35) { // Jawline & Mouth Area
+            const jawTaper = (isFemale ? 0.65 : 0.8) + (v + 65) / 100;
+            radius = 58 * jawTaper;
+            fx = Math.sin(phi) * radius;
+            fy = v;
+            fz = Math.cos(phi) * radius * 1.05;
         } else { // Chin & Neck
-            fx = (u * (chinWidth / 60));
+            const chinWidth = isFemale ? 18 : 26;
+            fx = (Math.random() - 0.5) * chinWidth;
             fy = v;
-            fz = 5 + (v * 0.1);
+            fz = (Math.random() - 0.2) * 25 + 20;
         }
 
         targetPositions[i * 3] = fx;
@@ -1241,10 +1255,10 @@ function initThreeGlowVisualizer() {
 
     geometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
 
-    const pColor = isFemale ? 0xff66cc : 0x00ffcc; // Pink/Purple for Female, Cyan/Blue for Male
+    // Theme Color Matching (Purplish Blue Signature Glow)
     const pMaterial = new THREE.PointsMaterial({
-        color: pColor,
-        size: 3.8,
+        color: 0x7B00FF,
+        size: window.innerWidth <= 768 ? 3.2 : 3.8,
         map: createGlowTexture(),
         transparent: true,
         blending: THREE.AdditiveBlending,
@@ -1272,7 +1286,7 @@ function visualizeAudio() {
     aiVoiceWaveTime += 0.05;
 
     if (assemblyProgress < 1.0) {
-        assemblyProgress += 0.015; // Smooth assembly from stars into face
+        assemblyProgress += 0.018; // Smooth assembly into full-screen AI face
         if (assemblyProgress > 1.0) assemblyProgress = 1.0;
     }
 
@@ -1288,23 +1302,23 @@ function visualizeAudio() {
             const ty = targetPositions[idx + 1];
             const tz = targetPositions[idx + 2];
 
-            // Interpolate from starfield dust to face target
+            // Interpolate from starfield dust to 3D AI face
             let currX = ox + (tx - ox) * assemblyProgress;
             let currY = oy + (ty - oy) * assemblyProgress;
             let currZ = oz + (tz - oz) * assemblyProgress;
 
-            // Lip-sync & emotional reaction simulation during AI speech
-            if (isAiSpeaking && ty > -50 && ty < -20 && Math.abs(tx) < 25) {
-                currY += Math.sin(aiVoiceWaveTime * 15 + i) * 3.5; // Lip movement
+            // Voice activity wave movement on particles
+            if (isAiSpeaking && ty > -55 && ty < -20 && Math.abs(tx) < 30) {
+                currY += Math.sin(aiVoiceWaveTime * 16 + i) * 4.0; // Lip sync wave movement
+                currZ += Math.cos(aiVoiceWaveTime * 12 + i) * 2.5;
             }
 
-            // Blinking & gentle head rotation
             positions[idx] = currX;
             positions[idx + 1] = currY;
-            positions[idx + 2] = currZ + Math.sin(aiVoiceWaveTime * 2) * 2;
+            positions[idx + 2] = currZ + Math.sin(aiVoiceWaveTime * 2.5 + ty * 0.05) * 1.8;
         }
         particleSystem.geometry.attributes.position.needsUpdate = true;
-        particleSystem.rotation.y = Math.sin(aiVoiceWaveTime * 0.5) * 0.15; // Gentle turning
+        particleSystem.rotation.y = Math.sin(aiVoiceWaveTime * 0.4) * 0.22; // Natural head rotation angle
     }
 
     if (renderer && scene && camera) {
@@ -1319,6 +1333,19 @@ function openLiveVoiceMode() {
     isRecognitionRunning = false;
     document.getElementById("liveVoiceOverlay").classList.add("active");
 
+    const displayType = (currentUser && currentUser.display_type) ? currentUser.display_type : "face";
+    const canvasElem = document.getElementById("threeGlowCanvas");
+    const visualizerBox = document.getElementById("classicVisualizerBox");
+
+    if (displayType === "visualizer") {
+        if (canvasElem) canvasElem.style.display = "none";
+        if (visualizerBox) visualizerBox.style.display = "flex";
+    } else {
+        if (canvasElem) canvasElem.style.display = "block";
+        if (visualizerBox) visualizerBox.style.display = "none";
+        initAudioVisualizer();
+    }
+
     const firstName = currentUser ? currentUser.first_name : "User";
     const greetingText = `ආයුබෝවන් ${firstName}, අද මම ඔබට උදව් කළ යුත්තේ කෙසේද?`;
 
@@ -1326,7 +1353,6 @@ function openLiveVoiceMode() {
     if (statusText) statusText.innerText = greetingText;
 
     connectLiveWebSocket();
-    initAudioVisualizer();
     
     speakText(greetingText, () => {
         if (isLiveVoiceActive) {

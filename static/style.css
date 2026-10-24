@@ -1329,18 +1329,46 @@ input:checked + .slider:before {
 
 .orb-visualizer-container {
     position: relative;
-    width: 380px;
-    height: 380px;
+    width: 100%;
+    max-width: 500px;
+    height: 450px;
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
 #threeGlowCanvas {
-    width: 380px !important;
-    height: 380px !important;
+    width: 500px !important;
+    height: 450px !important;
     display: block !important;
-    filter: drop-shadow(0 0 18px rgba(180, 0, 255, 0.8)) drop-shadow(0 0 35px rgba(123, 0, 255, 0.5));
+    filter: drop-shadow(0 0 25px rgba(123, 0, 255, 0.85)) drop-shadow(0 0 50px rgba(0, 68, 255, 0.6));
+}
+
+.classic-visualizer-bars {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    height: 120px;
+}
+
+.classic-visualizer-bars .bar {
+    width: 12px;
+    height: 40px;
+    background: linear-gradient(135deg, #7B00FF 0%, #0044FF 100%);
+    border-radius: 10px;
+    box-shadow: 0 0 15px #7B00FF;
+    animation: barBounce 1.2s infinite ease-in-out alternate;
+}
+
+.classic-visualizer-bars .bar:nth-child(2) { animation-delay: 0.2s; }
+.classic-visualizer-bars .bar:nth-child(3) { animation-delay: 0.4s; }
+.classic-visualizer-bars .bar:nth-child(4) { animation-delay: 0.6s; }
+.classic-visualizer-bars .bar:nth-child(5) { animation-delay: 0.8s; }
+
+@keyframes barBounce {
+    0% { height: 20px; opacity: 0.5; }
+    100% { height: 100px; opacity: 1; filter: drop-shadow(0 0 20px #0044FF); }
 }
 
 .voice-status-text {
@@ -1437,12 +1465,12 @@ input:checked + .slider:before {
     }
 
     .orb-visualizer-container {
-        width: 300px;
-        height: 300px;
+        width: 320px;
+        height: 320px;
     }
 
     #threeGlowCanvas {
-        width: 300px !important;
-        height: 300px !important;
+        width: 320px !important;
+        height: 320px !important;
     }
 }
