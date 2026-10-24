@@ -612,9 +612,9 @@ def call_gemini(prompt_content: str, custom_system_instruction: str) -> str:
     is_complex = any(kw in q_lower for kw in ["code", "python", "programming", "analyze", "explain deeply", "math", "equation", "ගණිතය", "කෝඩ්", "විස්තර කරන්න"])
     
     if is_complex:
-        models_to_try = ["gemini-1.5-pro", "gemini-3.8-flash", "gemini-3.5-flash-lite"]
+        models_to_try = ["gemini-3.8-flash", "gemini-2.5-pro", "gemini-3.5-flash-lite"]
     else:
-        models_to_try = ["gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-1.5-pro"]
+        models_to_try = ["gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-1.5-pro","gemini-2.5-pro"]
 
     for idx, key in enumerate(valid_keys, 1):
         try:

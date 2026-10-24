@@ -19,10 +19,11 @@ let animFrameId = null;
 
 let scene, camera, renderer, particleSystem;
 let glowRingLine, glowRingGeometry;
-let numParticles = 4000;
-let particlePositions, originalPositions, particleScales;
+let numParticles = 5000;
+let particlePositions, originalPositions, targetPositions;
 let isAiSpeaking = false;
 let aiVoiceWaveTime = 0;
+let assemblyProgress = 0; // 0 = scattered dust/stars, 1 = fully assembled face
 
 let allSystemUsers = [];
 let selectedRecipientEmail = "all";
@@ -1141,7 +1142,7 @@ function startVoiceToText() {
 }
 
 // =========================================================================
-// THREE.JS 3D GLOWING WAVEFORM PARTICLE SYSTEM & LIVE VOICE ENGINE
+// THREE.JS 3D SCI-FI PARTICLE AI FACE & LIVE VOICE ENGINE
 // =========================================================================
 
 function createGlowTexture() {
@@ -1171,9 +1172,8 @@ function initThreeGlowVisualizer() {
     }
 
     scene = new THREE.Scene();
-    
     camera = new THREE.PerspectiveCamera(60, 1, 0.1, 1000);
-    camera.position.z = 320;
+    camera.position.z = 280;
 
     renderer = new THREE.WebGLRenderer({ canvas: canvasElem, alpha: true, antialias: true });
     renderer.setSize(380, 380);
@@ -1182,37 +1182,69 @@ function initThreeGlowVisualizer() {
     const geometry = new THREE.BufferGeometry();
     particlePositions = new Float32Array(numParticles * 3);
     originalPositions = new Float32Array(numParticles * 3);
+    targetPositions = new Float32Array(numParticles * 3);
 
-    const baseRadius = 110;
-    const rings = 40;
-    const particlesPerRing = numParticles / rings;
+    const isFemale = currentUser && currentUser.voice_preference === "female";
 
-    let index = 0;
-    for (let r = 0; r < rings; r++) {
-        const ringRadius = baseRadius + (r * 1.5);
-        for (let p = 0; p < particlesPerRing; p++) {
-            const angle = (p / particlesPerRing) * Math.PI * 2;
-            const x = Math.cos(angle) * ringRadius;
-            const y = Math.sin(angle) * ringRadius;
-            const z = (Math.random() - 0.5) * 15;
+    // Procedural 3D Particle Face Mesh Coordinates Generator
+    for (let i = 0; i < numParticles; i++) {
+        // Start scattered in outer space (dust/starfield)
+        const startTheta = Math.random() * Math.PI * 2;
+        const startPhi = Math.acos((Math.random() * 2) - 1);
+        const startR = 250 + Math.random() * 150;
+        
+        const sx = startR * Math.sin(startPhi) * Math.cos(startTheta);
+        const sy = startR * Math.sin(startPhi) * Math.sin(startTheta);
+        const sz = startR * Math.cos(startPhi);
 
-            particlePositions[index * 3] = x;
-            particlePositions[index * 3 + 1] = y;
-            particlePositions[index * 3 + 2] = z;
+        originalPositions[i * 3] = sx;
+        originalPositions[i * 3 + 1] = sy;
+        originalPositions[i * 3 + 2] = sz;
 
-            originalPositions[index * 3] = x;
-            originalPositions[index * 3 + 1] = y;
-            originalPositions[index * 3 + 2] = z;
+        particlePositions[i * 3] = sx;
+        particlePositions[i * 3 + 1] = sy;
+        particlePositions[i * 3 + 2] = sz;
 
-            index++;
+        // Target Face Shape Coordinates (Male vs Female proportions)
+        let fx, fy, fz;
+        const u = (Math.random() - 0.5) * 120;
+        const v = (Math.random() - 0.5) * 160;
+
+        // Facial contour modeling equations
+        const faceWidth = isFemale ? 55 : 65;
+        const chinWidth = isFemale ? 25 : 35;
+        
+        if (v > 40) { // Crown / Head top
+            const theta = Math.random() * Math.PI * 2;
+            const r = faceWidth * (0.8 + Math.random() * 0.2);
+            fx = Math.cos(theta) * r;
+            fy = 60 + Math.sin(theta) * (r * 0.7);
+            fz = (Math.random() - 0.5) * 50;
+        } else if (v > -20 && v <= 40) { // Eyes, Nose, Cheeks
+            fx = u;
+            fy = v;
+            fz = Math.cos(u / 40) * 35 - Math.abs(v / 8);
+        } else if (v > -70 && v <= -20) { // Mouth & Jaw
+            fx = u * 0.8;
+            fy = v;
+            fz = Math.sin(u / 30) * 25 + 10;
+        } else { // Chin & Neck
+            fx = (u * (chinWidth / 60));
+            fy = v;
+            fz = 5 + (v * 0.1);
         }
+
+        targetPositions[i * 3] = fx;
+        targetPositions[i * 3 + 1] = fy;
+        targetPositions[i * 3 + 2] = fz;
     }
 
     geometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
 
+    const pColor = isFemale ? 0xff66cc : 0x00ffcc; // Pink/Purple for Female, Cyan/Blue for Male
     const pMaterial = new THREE.PointsMaterial({
-        color: 0x9d00ff,
-        size: 5.0,
+        color: pColor,
+        size: 3.8,
         map: createGlowTexture(),
         transparent: true,
         blending: THREE.AdditiveBlending,
@@ -1222,27 +1254,7 @@ function initThreeGlowVisualizer() {
     particleSystem = new THREE.Points(geometry, pMaterial);
     scene.add(particleSystem);
 
-    const ringPointsCount = 200;
-    const ringPositions = new Float32Array(ringPointsCount * 3);
-    
-    glowRingGeometry = new THREE.BufferGeometry();
-    for (let i = 0; i < ringPointsCount; i++) {
-        const angle = (i / ringPointsCount) * Math.PI * 2;
-        ringPositions[i * 3] = Math.cos(angle) * 105;
-        ringPositions[i * 3 + 1] = Math.sin(angle) * 105;
-        ringPositions[i * 3 + 2] = 0;
-    }
-    glowRingGeometry.setAttribute('position', new THREE.BufferAttribute(ringPositions, 3));
-
-    const lineMaterial = new THREE.LineBasicMaterial({
-        color: 0xdf80ff,
-        linewidth: 3.5,
-        transparent: true,
-        opacity: 0.95
-    });
-
-    glowRingLine = new THREE.LineLoop(glowRingGeometry, lineMaterial);
-    scene.add(glowRingLine);
+    assemblyProgress = 0; // Trigger assembly animation
 }
 
 async function initAudioVisualizer() {
@@ -1259,8 +1271,9 @@ function visualizeAudio() {
 
     aiVoiceWaveTime += 0.05;
 
-    if (isAiSpeaking) {
-        isUserSpeaking = false;
+    if (assemblyProgress < 1.0) {
+        assemblyProgress += 0.015; // Smooth assembly from stars into face
+        if (assemblyProgress > 1.0) assemblyProgress = 1.0;
     }
 
     if (particleSystem) {
@@ -1269,37 +1282,29 @@ function visualizeAudio() {
             const idx = i * 3;
             const ox = originalPositions[idx];
             const oy = originalPositions[idx + 1];
-            const angle = Math.atan2(oy, ox);
-            
-            let audioFactor = isAiSpeaking ? Math.abs(Math.sin(aiVoiceWaveTime * 3 + angle * 4)) * 0.85 + 0.15 : 0.25;
+            const oz = originalPositions[idx + 2];
 
-            const wavePulse = Math.sin(angle * 6 + aiVoiceWaveTime * 4) * (audioFactor * 35);
-            const radialMultiplier = 1 + (audioFactor * 0.35) + (wavePulse / 180);
+            const tx = targetPositions[idx];
+            const ty = targetPositions[idx + 1];
+            const tz = targetPositions[idx + 2];
 
-            positions[idx] = ox * radialMultiplier;
-            positions[idx + 1] = oy * radialMultiplier;
-            positions[idx + 2] = (Math.sin(angle * 8 + aiVoiceWaveTime * 2) * audioFactor * 20);
+            // Interpolate from starfield dust to face target
+            let currX = ox + (tx - ox) * assemblyProgress;
+            let currY = oy + (ty - oy) * assemblyProgress;
+            let currZ = oz + (tz - oz) * assemblyProgress;
+
+            // Lip-sync & emotional reaction simulation during AI speech
+            if (isAiSpeaking && ty > -50 && ty < -20 && Math.abs(tx) < 25) {
+                currY += Math.sin(aiVoiceWaveTime * 15 + i) * 3.5; // Lip movement
+            }
+
+            // Blinking & gentle head rotation
+            positions[idx] = currX;
+            positions[idx + 1] = currY;
+            positions[idx + 2] = currZ + Math.sin(aiVoiceWaveTime * 2) * 2;
         }
         particleSystem.geometry.attributes.position.needsUpdate = true;
-        particleSystem.rotation.z += 0.003;
-    }
-
-    if (glowRingLine) {
-        const ringPos = glowRingGeometry.attributes.position.array;
-        const ringCount = ringPos.length / 3;
-        for (let i = 0; i < ringCount; i++) {
-            const angle = (i / ringCount) * Math.PI * 2;
-            
-            let audioFactor = isAiSpeaking ? Math.abs(Math.sin(aiVoiceWaveTime * 4 + angle * 5)) * 0.9 + 0.1 : 0.25;
-
-            const waveDisplace = Math.sin(angle * 8 + aiVoiceWaveTime * 5) * (audioFactor * 28);
-            const radius = 105 + waveDisplace;
-
-            ringPos[i * 3] = Math.cos(angle) * radius;
-            ringPos[i * 3 + 1] = Math.sin(angle) * radius;
-        }
-        glowRingGeometry.attributes.position.needsUpdate = true;
-        glowRingLine.rotation.z -= 0.002;
+        particleSystem.rotation.y = Math.sin(aiVoiceWaveTime * 0.5) * 0.15; // Gentle turning
     }
 
     if (renderer && scene && camera) {
@@ -1445,7 +1450,6 @@ async function speakText(text, onCompleteCallback = null) {
         await audio.play();
     } catch (e) {
         console.error("Edge TTS playback error, falling back to Web Speech API:", e);
-        // Fallback to Web Speech API if network fails
         if ('speechSynthesis' in window) {
             window.speechSynthesis.cancel();
             const utterance = new SpeechSynthesisUtterance(cleanedText);
