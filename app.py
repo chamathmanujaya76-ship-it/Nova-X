@@ -877,6 +877,7 @@ class UpdateProfileRequest(BaseModel):
     purpose: Optional[str] = None
     password: Optional[str] = None
     voice_preference: Optional[str] = "male"
+    display_type: Optional[str] = "face"
     profile_pic: Optional[str] = None
 
 class MessageRequest(BaseModel):
@@ -904,7 +905,7 @@ async def text_to_speech_edge(req: TTSRequest):
     if not req.text or not req.text.strip():
         raise HTTPException(status_code=400, detail="Text is required")
     
-    # Select Sinhala Neural Voice based on preference
+    # Correctly select voice based on user preference (Female / Male)
     voice_name = "lk-LK-ThiliniNeural" if req.voice == "female" else "lk-LK-SameeraNeural"
     
     try:
@@ -1059,6 +1060,7 @@ async def register(req: AuthRequest):
         "password": hash_password(req.password),
         "is_creator": is_creator,
         "voice_preference": "male",
+        "display_type": "face",
         "profile_pic": "",
         "created_at": datetime.now()
     })
@@ -1075,6 +1077,7 @@ async def register(req: AuthRequest):
         "email": req.email,
         "is_creator": is_creator,
         "voice_preference": "male",
+        "display_type": "face",
         "profile_pic": ""
     }
     
@@ -1119,6 +1122,8 @@ async def update_profile(req: UpdateProfileRequest):
         update_dict["password"] = hash_password(req.password.strip())
     if req.voice_preference:
         update_dict["voice_preference"] = req.voice_preference
+    if req.display_type:
+        update_dict["display_type"] = req.display_type
 
     if db and req.user_id:
         try:
@@ -1130,7 +1135,8 @@ async def update_profile(req: UpdateProfileRequest):
     return {
         "success": True,
         "profile_pic": req.profile_pic or "",
-        "voice_preference": req.voice_preference
+        "voice_preference": req.voice_preference,
+        "display_type": req.display_type
     }
 
 @app.post("/api/messages/send")

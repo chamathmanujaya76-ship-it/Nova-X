@@ -1274,6 +1274,7 @@ input:checked + .slider:before {
     text-decoration: underline;
 }
 
+/* FULL-SCREEN LIVE VOICE OVERLAY STYLING */
 .live-voice-overlay {
     display: none;
     position: fixed;
@@ -1286,6 +1287,7 @@ input:checked + .slider:before {
     flex-direction: column;
     justify-content: space-between;
     padding: 25px;
+    overflow: hidden;
 }
 
 .live-voice-overlay.active {
@@ -1296,6 +1298,8 @@ input:checked + .slider:before {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    z-index: 10;
+    position: relative;
 }
 
 .live-title {
@@ -1325,23 +1329,33 @@ input:checked + .slider:before {
     align-items: center;
     justify-content: center;
     flex: 1;
+    z-index: 10;
+    position: relative;
+    pointer-events: none;
 }
 
+/* FULL-SCREEN THREE.JS CANVAS & ORB CONTAINER */
 .orb-visualizer-container {
-    position: relative;
-    width: 100%;
-    max-width: 500px;
-    height: 450px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 1;
+    pointer-events: none;
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
 #threeGlowCanvas {
-    width: 500px !important;
-    height: 450px !important;
+    width: 100vw !important;
+    height: 100vh !important;
     display: block !important;
-    filter: drop-shadow(0 0 25px rgba(123, 0, 255, 0.85)) drop-shadow(0 0 50px rgba(0, 68, 255, 0.6));
+    position: absolute;
+    top: 0;
+    left: 0;
+    filter: drop-shadow(0 0 35px rgba(123, 0, 255, 0.8)) drop-shadow(0 0 70px rgba(0, 68, 255, 0.5));
 }
 
 .classic-visualizer-bars {
@@ -1350,6 +1364,8 @@ input:checked + .slider:before {
     justify-content: center;
     gap: 12px;
     height: 120px;
+    z-index: 10;
+    position: relative;
 }
 
 .classic-visualizer-bars .bar {
@@ -1372,42 +1388,50 @@ input:checked + .slider:before {
 }
 
 .voice-status-text {
-    margin-top: 20px;
+    margin-top: 180px;
     font-size: 16px;
-    color: #7B00FF;
+    color: #a855f7;
     letter-spacing: 1px;
     font-weight: 600;
     text-align: center;
+    text-shadow: 0 0 12px rgba(123,0,255,0.8);
+    background: rgba(0,0,0,0.6);
+    padding: 8px 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(123,0,255,0.4);
 }
 
 .transcript-preview {
-    margin-top: 15px;
+    margin-top: 10px;
     font-size: 14px;
-    color: #888888;
+    color: #e2e8f0;
     max-width: 80%;
     text-align: center;
     min-height: 24px;
+    text-shadow: 0 0 8px rgba(0,0,0,0.9);
 }
 
 .live-controls {
     display: flex;
     justify-content: center;
     padding-bottom: 25px;
+    z-index: 10;
+    position: relative;
 }
 
 .live-mic-toggle-btn {
-    width: 48px;
-    height: 48px;
+    width: 52px;
+    height: 52px;
     border-radius: 50%;
-    border: 1.5px solid #7B00FF;
+    border: 1.8px solid #7B00FF;
     background: #06030E;
     color: #7B00FF;
-    font-size: 18px;
+    font-size: 20px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 0 15px rgba(123, 0, 255, 0.4);
+    box-shadow: 0 0 20px rgba(123, 0, 255, 0.6);
     transition: all 0.3s ease;
 }
 
@@ -1415,7 +1439,7 @@ input:checked + .slider:before {
     background: #120826;
     color: #ffffff;
     border-color: #0044FF;
-    box-shadow: 0 0 25px rgba(123, 0, 255, 0.8), 0 0 35px rgba(0, 68, 255, 0.6);
+    box-shadow: 0 0 30px rgba(123, 0, 255, 0.9), 0 0 50px rgba(0, 68, 255, 0.7);
 }
 
 @media screen and (max-width: 768px) {
@@ -1462,15 +1486,5 @@ input:checked + .slider:before {
     .sidebar-overlay.active {
         box-shadow: 0 0 0 100vw rgba(0,0,0,0.7);
         display: block;
-    }
-
-    .orb-visualizer-container {
-        width: 320px;
-        height: 320px;
-    }
-
-    #threeGlowCanvas {
-        width: 320px !important;
-        height: 320px !important;
     }
 }
