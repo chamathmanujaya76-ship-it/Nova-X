@@ -1144,7 +1144,7 @@ function startVoiceToText() {
 }
 
 // =========================================================================
-// THREE.JS 3D SCI-FI PARTICLE AI FACE & STARFIELD ASSEMBLY ENGINE (.GLB INTEGRATED)
+// THREE.JS 3D SCI-FI PARTICLE AI FACE & STARFIELD ASSEMBLY ENGINE (BLENDER .GLB INTEGRATED)
 // =========================================================================
 
 function createGlowTexture() {
@@ -1211,17 +1211,17 @@ function initThreeGlowVisualizer() {
         particlePositions[i * 3 + 1] = sy;
         particlePositions[i * 3 + 2] = sz;
 
-        // Structured 3D Face Mapping based on the provided 1397 GLB Vertices topology
+        // Default procedural 3D Face Mapping
         let fx, fy, fz;
         const v = (Math.random() - 0.5) * 160; 
         const u = (Math.random() - 0.5) * Math.PI * 0.9;
 
-        if (v > 22) { // Forehead & Skull Top
+        if (v > 22) {
             const r = 68 * Math.cos((v - 22) / 110);
             fx = Math.sin(u) * r;
             fy = v;
             fz = Math.cos(u) * r * 0.92;
-        } else if (v > -28 && v <= 22) { // Mid Face (Eyes, Nose, Cheeks from GLB)
+        } else if (v > -28 && v <= 22) {
             const isNose = Math.abs(u) < 0.25 && v > -12 && v < 12;
             const noseBump = isNose ? 22 : 0;
             const isEye = Math.abs(u) > 0.2 && Math.abs(u) < 0.58 && v > 4 && v < 18;
@@ -1230,14 +1230,14 @@ function initThreeGlowVisualizer() {
             fx = Math.sin(u) * r;
             fy = v;
             fz = Math.cos(u) * r;
-        } else if (v > -60 && v <= -28) { // Mouth & Jaw
+        } else if (v > -60 && v <= -28) {
             const isMouth = Math.abs(u) < 0.32 && v > -48 && v < -36;
             const mouthBump = isMouth ? 10 : 0;
             const r = 60 + mouthBump;
             fx = Math.sin(u) * r;
             fy = v;
             fz = Math.cos(u) * r * 1.02;
-        } else { // Chin & Neck
+        } else {
             fx = (Math.random() - 0.5) * 26;
             fy = v;
             fz = (Math.random() - 0.3) * 25 + 20;
@@ -1246,6 +1246,37 @@ function initThreeGlowVisualizer() {
         targetPositions[i * 3] = fx;
         targetPositions[i * 3 + 1] = fy;
         targetPositions[i * 3 + 2] = fz;
+    }
+
+    // Load Blender GLB Model via THREE.GLTFLoader from static folder
+    if (typeof THREE.GLTFLoader !== 'undefined') {
+        const loader = new THREE.GLTFLoader();
+        loader.load('/static/face.glb', function (gltf) {
+            let loadedVertices = [];
+            gltf.scene.traverse((child) => {
+                if (child.isMesh && child.geometry) {
+                    const posAttr = child.geometry.attributes.position;
+                    for (let j = 0; j < posAttr.count; j++) {
+                        loadedVertices.push(new THREE.Vector3(
+                            posAttr.getX(j) * 55,
+                            posAttr.getY(j) * 55,
+                            posAttr.getZ(j) * 55
+                        ));
+                    }
+                }
+            });
+
+            if (loadedVertices.length > 0) {
+                for (let i = 0; i < numParticles; i++) {
+                    const v = loadedVertices[i % loadedVertices.length];
+                    targetPositions[i * 3] = v.x;
+                    targetPositions[i * 3 + 1] = v.y;
+                    targetPositions[i * 3 + 2] = v.z;
+                }
+            }
+        }, undefined, function (error) {
+            console.log("GLB load note / fallback active:", error);
+        });
     }
 
     geometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
@@ -1262,7 +1293,7 @@ function initThreeGlowVisualizer() {
     particleSystem = new THREE.Points(geometry, pMaterial);
     scene.add(particleSystem);
 
-    assemblyProgress = 0; // Triggers the Assembly Effect when opening live voice
+    assemblyProgress = 0;
 }
 
 async function initAudioVisualizer() {
@@ -1279,7 +1310,6 @@ function visualizeAudio() {
 
     aiVoiceWaveTime += 0.05;
 
-    // Assembly Effect: Particles converge from scattered starfield into the 3D face
     if (assemblyProgress < 1.0) {
         assemblyProgress += 0.012; 
         if (assemblyProgress > 1.0) assemblyProgress = 1.0;
@@ -1288,7 +1318,6 @@ function visualizeAudio() {
     if (particleSystem) {
         const positions = particleSystem.geometry.attributes.position.array;
         
-        // Dynamic Glowing Color Shifting (Blue / Violet / Cyan spectrum)
         const hue = (Math.sin(aiVoiceWaveTime * 0.18) + 1) * 0.12 + 0.58; 
         particleSystem.material.color.setHSL(hue, 0.95, 0.62);
 
@@ -1302,18 +1331,15 @@ function visualizeAudio() {
             const ty = targetPositions[idx + 1];
             const tz = targetPositions[idx + 2];
 
-            // Interpolating from starfield dust to assembled face
             let currX = ox + (tx - ox) * assemblyProgress;
             let currY = oy + (ty - oy) * assemblyProgress;
             let currZ = oz + (tz - oz) * assemblyProgress;
 
-            // Lip-Sync Animation (When AI speaks, mouth vertices move rhythmically)
             if (isAiSpeaking && ty > -50 && ty < -34 && Math.abs(tx) < 22) {
                 currY += Math.sin(aiVoiceWaveTime * 20 + i) * 4.5;
                 currZ += Math.cos(aiVoiceWaveTime * 16 + i) * 2.8;
             }
 
-            // Human-like Blinking Animation (Periodic slight eye contraction)
             const isBlinking = Math.sin(aiVoiceWaveTime * 1.4) > 0.96;
             if (isBlinking && ty > 4 && ty < 16 && Math.abs(tx) > 10 && Math.abs(tx) < 30) {
                 currY *= 0.9;
@@ -1324,7 +1350,7 @@ function visualizeAudio() {
             positions[idx + 2] = currZ + Math.sin(aiVoiceWaveTime * 1.8 + ty * 0.04) * 1.8;
         }
         particleSystem.geometry.attributes.position.needsUpdate = true;
-        particleSystem.rotation.y = Math.sin(aiVoiceWaveTime * 0.3) * 0.22; // Natural head rotation
+        particleSystem.rotation.y = Math.sin(aiVoiceWaveTime * 0.3) * 0.22;
     }
 
     if (renderer && scene && camera) {
