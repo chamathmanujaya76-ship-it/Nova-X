@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="/static/style.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 </head>
 <body>
 
@@ -122,7 +123,6 @@
                         <i class="fa-solid fa-user-astronaut"></i> <span>Personal Intelligence</span>
                     </button>
 
-                    <!-- MESSAGES AND FEEDBACK TAB -->
                     <button class="nav-tab-btn" onclick="switchSettingsTab('messages-feedback', this); loadMessagesAndUsersTab();">
                         <i class="fa-solid fa-comments"></i> <span>Messages & Feedback</span>
                         <span id="tabUnreadDot" class="unread-tab-dot" style="display:none;"></span>
@@ -136,7 +136,6 @@
                         <i class="fa-solid fa-bell"></i> <span>Notifications</span>
                     </button>
 
-                    <!-- CREATOR EXCLUSIVE CONTROL & ADVANCED FEATURES TAB -->
                     <button class="nav-tab-btn" id="creatorControlTabBtn" onclick="switchSettingsTab('creator-control', this); fetchCreatorMetrics();" style="display: none; border: 1px solid #FFD700; color: #FFD700;">
                         <i class="fa-solid fa-gauge-high"></i> <span>Creator Control & Metrics</span>
                     </button>
@@ -194,11 +193,8 @@
                         </form>
                     </div>
 
-                    <!-- MESSAGES & FEEDBACK TAB CONTENT -->
                     <div class="tab-content" id="tab-messages-feedback" style="display: none;">
-                        <div id="messagesFeedbackContainer" style="display: flex; flex-direction: column; gap: 14px;">
-                            <!-- Dynamically loaded via JavaScript -->
-                        </div>
+                        <div id="messagesFeedbackContainer" style="display: flex; flex-direction: column; gap: 14px;"></div>
                     </div>
 
                     <div class="tab-content" id="tab-subscription" style="display: none;">
@@ -258,7 +254,6 @@
                         </div>
                     </div>
 
-                    <!-- CREATOR EXCLUSIVE CONTROL & ADVANCED FEATURES TAB CONTENT -->
                     <div class="tab-content" id="tab-creator-control" style="display: none;">
                         <div style="display: flex; flex-direction: column; gap: 14px;">
                             <h3 style="color: #FFD700; font-size: 16px;"><i class="fa-solid fa-shield-halved"></i> Creator Dashboard & System Diagnostics</h3>
@@ -275,7 +270,6 @@
                                 </div>
                             </div>
 
-                            <!-- 1. Knowledge Base Viewer & Management Section -->
                             <div style="background: #0b0516; border: 1px solid #7B00FF; border-radius: 12px; padding: 12px;">
                                 <h4 style="color: #FFD700; font-size: 13px; margin-bottom: 6px;"><i class="fa-solid fa-brain"></i> Knowledge Base Viewer & Editor</h4>
                                 <div style="display: flex; gap: 6px; margin-bottom: 8px;">
@@ -290,16 +284,14 @@
                                 <div id="creatorKnowledgeList" style="max-height: 120px; overflow-y: auto;">Loading knowledge base...</div>
                             </div>
 
-                            <!-- 2. Terminal & CLI Integration Section -->
                             <div style="background: #0b0516; border: 1px solid #7B00FF; border-radius: 12px; padding: 12px;">
                                 <h4 style="color: #FFD700; font-size: 13px; margin-bottom: 6px;"><i class="fa-solid fa-terminal"></i> Terminal & CLI Integration</h4>
                                 <div id="cliOutputBox" style="background: #000; border: 1px solid rgba(123,0,255,0.4); border-radius: 8px; padding: 8px; height: 90px; overflow-y: auto; font-family: monospace; font-size: 11px; color: #00ff88; margin-bottom: 6px;">
                                     Nexuz CLI v1.0 Ready. Type 'help' for commands.
                                 </div>
-                                <input type="text" id="cliInputCmd" placeholder="Enter CLI command (e.g. status, list_users, ai_params)..." onkeydown="handleCreatorCliKeydown(event)" style="width: 100%; background: #000; border: 1px solid #7B00FF; border-radius: 6px; padding: 6px 10px; color: #fff; font-size: 12px; outline: none;">
+                                <input type="text" id="cliInputCmd" placeholder="Enter CLI command..." onkeydown="handleCreatorCliKeydown(event)" style="width: 100%; background: #000; border: 1px solid #7B00FF; border-radius: 6px; padding: 6px 10px; color: #fff; font-size: 12px; outline: none;">
                             </div>
 
-                            <!-- 3. Database Direct Inspector Section -->
                             <div style="background: #0b0516; border: 1px solid #7B00FF; border-radius: 12px; padding: 12px;">
                                 <h4 style="color: #FFD700; font-size: 13px; margin-bottom: 6px;"><i class="fa-solid fa-database"></i> Database Direct Inspector</h4>
                                 <div id="dbInspectorContainer" style="max-height: 140px; overflow-y: auto;">Loading database collections...</div>
@@ -307,9 +299,7 @@
 
                             <div>
                                 <h4 style="color: #fff; font-size: 13px; margin-bottom: 6px;">API Key Usage Frequency</h4>
-                                <div id="apiKeyUsageList" style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; background: #000; padding: 10px; border-radius: 10px; border: 1px solid rgba(123,0,255,0.3);">
-                                    Loading API metrics...
-                                </div>
+                                <div id="apiKeyUsageList" style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; background: #000; padding: 10px; border-radius: 10px; border: 1px solid rgba(123,0,255,0.3);">Loading API metrics...</div>
                             </div>
 
                             <div>
@@ -319,9 +309,7 @@
                                         <i class="fa-solid fa-wand-magic-sparkles"></i> AI Auto-Fix
                                     </button>
                                 </div>
-                                <div id="systemErrorsLogBox" style="max-height: 140px; overflow-y: auto; background: #000; border: 1px solid #ef4444; border-radius: 10px; padding: 8px; font-family: monospace; font-size: 11px; color: #f87171;">
-                                    No errors logged.
-                                </div>
+                                <div id="systemErrorsLogBox" style="max-height: 140px; overflow-y: auto; background: #000; border: 1px solid #ef4444; border-radius: 10px; padding: 8px; font-family: monospace; font-size: 11px; color: #f87171;">No errors logged.</div>
                             </div>
 
                             <div id="autoDebugResultContainer" style="display: none; background: #06030E; border: 1px solid #00ff88; border-radius: 10px; padding: 10px; font-size: 12px; color: #00ff88;">
@@ -446,7 +434,7 @@
                 </div>
                 
                 <div class="glow-input-box">
-                    <label class="plus-icon-label" for="fileInput" title="Attach files (Image, Audio, Video, Docs)">
+                    <label class="plus-icon-label" for="fileInput" title="Attach files">
                         <span class="plus-icon">+</span>
                         <input type="file" id="fileInput" multiple accept="image/*,audio/*,video/*,.pdf,.doc,.docx,.pptx,.ppt,.xlsx,.xls,.txt" style="display: none;" onchange="handleFileSelect(event)">
                     </label>

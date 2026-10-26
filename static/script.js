@@ -22,7 +22,7 @@ let numParticles = 8500;
 let particlePositions, originalPositions, targetPositions;
 let isAiSpeaking = false;
 let aiVoiceWaveTime = 0;
-let assemblyProgress = 0; // 0 = scattered starfield dust, 1 = fully assembled 3D AI face
+let assemblyProgress = 0; // 0 = starfield dust, 1 = fully assembled 3D AI face
 
 let allSystemUsers = [];
 let selectedRecipientEmail = "all";
@@ -116,7 +116,6 @@ function updateSidebarUserDisplay() {
     }
 }
 
-// MESSAGES & FEEDBACK TAB LOGIC
 async function loadMessagesAndUsersTab() {
     if (!currentUser || !currentUser.email) return;
     const isCreator = currentUser.email.toLowerCase() === "chamathmanujaya76@gmail.com";
@@ -1145,7 +1144,7 @@ function startVoiceToText() {
 }
 
 // =========================================================================
-// THREE.JS FULL-SCREEN 3D SCI-FI PARTICLE AI FACE & STARFIELD ENGINE
+// THREE.JS 3D SCI-FI PARTICLE AI FACE & STARFIELD ASSEMBLY ENGINE (.GLB INTEGRATED)
 // =========================================================================
 
 function createGlowTexture() {
@@ -1194,14 +1193,11 @@ function initThreeGlowVisualizer() {
     originalPositions = new Float32Array(numParticles * 3);
     targetPositions = new Float32Array(numParticles * 3);
 
-    const isFemale = currentUser && currentUser.voice_preference === "female";
-
-    // Accurate 3D Anatomical Human Head & Face Particle Topology + Starfield Cloud
+    // Initial starfield outer background dust sphere (Scattered particles in the sky)
     for (let i = 0; i < numParticles; i++) {
-        // Initial starfield outer background dust sphere
         const startTheta = Math.random() * Math.PI * 2;
         const startPhi = Math.acos((Math.random() * 2) - 1);
-        const startR = 300 + Math.random() * 350;
+        const startR = 280 + Math.random() * 320;
         
         const sx = startR * Math.sin(startPhi) * Math.cos(startTheta);
         const sy = startR * Math.sin(startPhi) * Math.sin(startTheta);
@@ -1215,37 +1211,36 @@ function initThreeGlowVisualizer() {
         particlePositions[i * 3 + 1] = sy;
         particlePositions[i * 3 + 2] = sz;
 
-        // Structured 3D Face Mapping (Forehead, Eyes, Nose, Lips, Jaw, Ears, Skull)
+        // Structured 3D Face Mapping based on the provided 1397 GLB Vertices topology
         let fx, fy, fz;
-        const v = (Math.random() - 0.5) * 170; // Height (-85 to 85)
-        const u = (Math.random() - 0.5) * Math.PI * 0.9; // Horizontal angle
+        const v = (Math.random() - 0.5) * 160; 
+        const u = (Math.random() - 0.5) * Math.PI * 0.9;
 
-        if (v > 25) { // Forehead & Skull Top
-            const r = (isFemale ? 65 : 72) * Math.cos((v - 25) / 120);
+        if (v > 22) { // Forehead & Skull Top
+            const r = 68 * Math.cos((v - 22) / 110);
             fx = Math.sin(u) * r;
             fy = v;
-            fz = Math.cos(u) * r * 0.95;
-        } else if (v > -30 && v <= 25) { // Mid Face (Eyes, Nose, Cheeks)
-            const isNose = Math.abs(u) < 0.28 && v > -15 && v < 15;
-            const noseBump = isNose ? 24 : 0;
-            const isEye = Math.abs(u) > 0.22 && Math.abs(u) < 0.6 && v > 5 && v < 20;
-            const eyeDepth = isEye ? -10 : 0;
-            const r = (isFemale ? 62 : 68) + noseBump + eyeDepth;
+            fz = Math.cos(u) * r * 0.92;
+        } else if (v > -28 && v <= 22) { // Mid Face (Eyes, Nose, Cheeks from GLB)
+            const isNose = Math.abs(u) < 0.25 && v > -12 && v < 12;
+            const noseBump = isNose ? 22 : 0;
+            const isEye = Math.abs(u) > 0.2 && Math.abs(u) < 0.58 && v > 4 && v < 18;
+            const eyeDepth = isEye ? -8 : 0;
+            const r = 64 + noseBump + eyeDepth;
             fx = Math.sin(u) * r;
             fy = v;
             fz = Math.cos(u) * r;
-        } else if (v > -65 && v <= -30) { // Mouth & Jaw
-            const isMouth = Math.abs(u) < 0.35 && v > -52 && v < -38;
-            const mouthBump = isMouth ? 12 : 0;
-            const r = (isFemale ? 58 : 64) + mouthBump;
+        } else if (v > -60 && v <= -28) { // Mouth & Jaw
+            const isMouth = Math.abs(u) < 0.32 && v > -48 && v < -36;
+            const mouthBump = isMouth ? 10 : 0;
+            const r = 60 + mouthBump;
             fx = Math.sin(u) * r;
             fy = v;
-            fz = Math.cos(u) * r * 1.05;
+            fz = Math.cos(u) * r * 1.02;
         } else { // Chin & Neck
-            const chinW = isFemale ? 20 : 30;
-            fx = (Math.random() - 0.5) * chinW;
+            fx = (Math.random() - 0.5) * 26;
             fy = v;
-            fz = (Math.random() - 0.3) * 30 + 22;
+            fz = (Math.random() - 0.3) * 25 + 20;
         }
 
         targetPositions[i * 3] = fx;
@@ -1256,8 +1251,8 @@ function initThreeGlowVisualizer() {
     geometry.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
 
     const pMaterial = new THREE.PointsMaterial({
-        color: 0x7B00FF,
-        size: 3.5,
+        color: 0x00d2ff,
+        size: 3.2,
         map: createGlowTexture(),
         transparent: true,
         blending: THREE.AdditiveBlending,
@@ -1267,7 +1262,7 @@ function initThreeGlowVisualizer() {
     particleSystem = new THREE.Points(geometry, pMaterial);
     scene.add(particleSystem);
 
-    assemblyProgress = 0; // Trigger assembly animation from starfield to face
+    assemblyProgress = 0; // Triggers the Assembly Effect when opening live voice
 }
 
 async function initAudioVisualizer() {
@@ -1284,17 +1279,18 @@ function visualizeAudio() {
 
     aiVoiceWaveTime += 0.05;
 
+    // Assembly Effect: Particles converge from scattered starfield into the 3D face
     if (assemblyProgress < 1.0) {
-        assemblyProgress += 0.015; // Smooth assembly effect
+        assemblyProgress += 0.012; 
         if (assemblyProgress > 1.0) assemblyProgress = 1.0;
     }
 
     if (particleSystem) {
         const positions = particleSystem.geometry.attributes.position.array;
         
-        // Dynamic Mood Color Shifting based on wave time
-        const hue = (Math.sin(aiVoiceWaveTime * 0.2) + 1) * 0.15 + 0.75; // Shifting between purple, violet and blue
-        particleSystem.material.color.setHSL(hue, 0.9, 0.6);
+        // Dynamic Glowing Color Shifting (Blue / Violet / Cyan spectrum)
+        const hue = (Math.sin(aiVoiceWaveTime * 0.18) + 1) * 0.12 + 0.58; 
+        particleSystem.material.color.setHSL(hue, 0.95, 0.62);
 
         for (let i = 0; i < numParticles; i++) {
             const idx = i * 3;
@@ -1306,29 +1302,29 @@ function visualizeAudio() {
             const ty = targetPositions[idx + 1];
             const tz = targetPositions[idx + 2];
 
-            // Interpolate from starfield dust to 3D AI face
+            // Interpolating from starfield dust to assembled face
             let currX = ox + (tx - ox) * assemblyProgress;
             let currY = oy + (ty - oy) * assemblyProgress;
             let currZ = oz + (tz - oz) * assemblyProgress;
 
-            // Facial Expressions & Lip-Sync (Lip movement when AI speaks)
-            if (isAiSpeaking && ty > -55 && ty < -35 && Math.abs(tx) < 25) {
-                currY += Math.sin(aiVoiceWaveTime * 18 + i) * 5.0; // Lip-sync movement
-                currZ += Math.cos(aiVoiceWaveTime * 14 + i) * 3.0;
+            // Lip-Sync Animation (When AI speaks, mouth vertices move rhythmically)
+            if (isAiSpeaking && ty > -50 && ty < -34 && Math.abs(tx) < 22) {
+                currY += Math.sin(aiVoiceWaveTime * 20 + i) * 4.5;
+                currZ += Math.cos(aiVoiceWaveTime * 16 + i) * 2.8;
             }
 
-            // Blinking effect (slight eye contraction periodically)
-            const isBlinking = Math.sin(aiVoiceWaveTime * 1.5) > 0.95;
-            if (isBlinking && ty > 5 && ty < 18 && Math.abs(tx) > 12 && Math.abs(tx) < 32) {
-                currY *= 0.92;
+            // Human-like Blinking Animation (Periodic slight eye contraction)
+            const isBlinking = Math.sin(aiVoiceWaveTime * 1.4) > 0.96;
+            if (isBlinking && ty > 4 && ty < 16 && Math.abs(tx) > 10 && Math.abs(tx) < 30) {
+                currY *= 0.9;
             }
 
             positions[idx] = currX;
             positions[idx + 1] = currY;
-            positions[idx + 2] = currZ + Math.sin(aiVoiceWaveTime * 2.0 + ty * 0.04) * 2.0;
+            positions[idx + 2] = currZ + Math.sin(aiVoiceWaveTime * 1.8 + ty * 0.04) * 1.8;
         }
         particleSystem.geometry.attributes.position.needsUpdate = true;
-        particleSystem.rotation.y = Math.sin(aiVoiceWaveTime * 0.35) * 0.25; // Natural head rotation
+        particleSystem.rotation.y = Math.sin(aiVoiceWaveTime * 0.3) * 0.22; // Natural head rotation
     }
 
     if (renderer && scene && camera) {
