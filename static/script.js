@@ -1144,7 +1144,7 @@ function startVoiceToText() {
 }
 
 // =========================================================================
-// THREE.JS 3D SCI-FI PARTICLE AI FACE & STARFIELD ASSEMBLY ENGINE (BLENDER .GLB INTEGRATED)
+// THREE.JS 3D SCI-FI PARTICLE AI FACE & STARFIELD ASSEMBLY ENGINE (BLENDER .GLB INTEGRATED & FIXED)
 // =========================================================================
 
 function createGlowTexture() {
@@ -1211,7 +1211,7 @@ function initThreeGlowVisualizer() {
         particlePositions[i * 3 + 1] = sy;
         particlePositions[i * 3 + 2] = sz;
 
-        // Default procedural 3D Face Mapping
+        // Fallback procedural 3D Face Mapping if GLB load fails or delays
         let fx, fy, fz;
         const v = (Math.random() - 0.5) * 160; 
         const u = (Math.random() - 0.5) * Math.PI * 0.9;
@@ -1248,7 +1248,7 @@ function initThreeGlowVisualizer() {
         targetPositions[i * 3 + 2] = fz;
     }
 
-    // Load Blender GLB Model via THREE.GLTFLoader from static folder
+    // Load Blender GLB Model via THREE.GLTFLoader with Fixed Centering & Scale Alignment
     if (typeof THREE.GLTFLoader !== 'undefined') {
         const loader = new THREE.GLTFLoader();
         loader.load('/static/face.glb', function (gltf) {
@@ -1257,11 +1257,11 @@ function initThreeGlowVisualizer() {
                 if (child.isMesh && child.geometry) {
                     const posAttr = child.geometry.attributes.position;
                     for (let j = 0; j < posAttr.count; j++) {
-                        loadedVertices.push(new THREE.Vector3(
-                            posAttr.getX(j) * 55,
-                            posAttr.getY(j) * 55,
-                            posAttr.getZ(j) * 55
-                        ));
+                        // Correct Coordinate transform (Z-up to Y-up scaling & Offset)
+                        const vx = posAttr.getX(j) * 80.0;
+                        const vy = posAttr.getZ(j) * 80.0 - 220.0; // Vertically center aligned
+                        const vz = -posAttr.getY(j) * 80.0;
+                        loadedVertices.push(new THREE.Vector3(vx, vy, vz));
                     }
                 }
             });
@@ -1269,13 +1269,14 @@ function initThreeGlowVisualizer() {
             if (loadedVertices.length > 0) {
                 for (let i = 0; i < numParticles; i++) {
                     const v = loadedVertices[i % loadedVertices.length];
-                    targetPositions[i * 3] = v.x;
-                    targetPositions[i * 3 + 1] = v.y;
-                    targetPositions[i * 3 + 2] = v.z;
+                    targetPositions[i * 3] = v.x + (Math.random() - 0.5) * 1.5;
+                    targetPositions[i * 3 + 1] = v.y + (Math.random() - 0.5) * 1.5;
+                    targetPositions[i * 3 + 2] = v.z + (Math.random() - 0.5) * 1.5;
                 }
+                console.log("GLB Face Model Successfully Loaded & Aligned!");
             }
         }, undefined, function (error) {
-            console.log("GLB load note / fallback active:", error);
+            console.log("GLB Load warning / Procedural Fallback active:", error);
         });
     }
 

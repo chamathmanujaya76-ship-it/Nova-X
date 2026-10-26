@@ -62,6 +62,16 @@ static_dir = os.path.join(base_dir, "static")
 if os.path.exists(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
+# Direct Static Route for GLB Model File Access Guarantee
+@app.get("/static/face.glb")
+async def serve_glb_model():
+    glb_path = os.path.join(static_dir, "face.glb")
+    if not os.path.exists(glb_path):
+        glb_path = os.path.join(base_dir, "face.glb")
+    if os.path.exists(glb_path):
+        return FileResponse(glb_path, media_type="model/gltf-binary")
+    raise HTTPException(status_code=404, detail="GLB file not found")
+
 # ================= LOCAL COMPUTER VAULT STORAGE SETUP (VERCEL SAFE /TMP) =================
 IS_VERCEL = os.environ.get("VERCEL", "0") == "1" or os.environ.get("VERCEL_ENV") is not None
 if IS_VERCEL:
