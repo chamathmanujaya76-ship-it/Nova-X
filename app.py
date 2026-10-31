@@ -4,7 +4,8 @@ import time
 import hashlib
 import json
 import asyncio
-import httpx  # වේගවත් API සන්නිවේදනය සඳහා
+import urllib.request
+import urllib.parse
 from datetime import datetime
 from typing import Optional, List
 from fastapi import FastAPI, Request, HTTPException, WebSocket, WebSocketDisconnect
@@ -16,13 +17,8 @@ from google import genai
 import firebase_admin
 from firebase_admin import credentials, firestore
 import edge_tts
-import bcrypt # Password ආරක්ෂාව සඳහා
 
 app = FastAPI(title="Nexuz AI - Proactive & Autonomous Self-Learning Edition")
-
-# Creator Email එක වෙනස් කිරීමට පහසු වන ලෙස මෙසේ තබමු
-CREATOR_EMAIL = "chamathmanujaya76@gmail.com"
-
 
 # ================= SYSTEM METRICS & LOGS TRACKER (CREATOR ADMIN) =================
 SYSTEM_METRICS = {
@@ -367,183 +363,235 @@ def get_firebase_context_for_ai(user_id: str, is_creator: bool, user_email: str 
         return "[Firebase Database Status: Not Connected]"
 
     try:
-        # වේගය වැඩි කිරීමට: Creator නොවන විට සියලුම usersලා fetch කිරීම නවතා දැමීම
-        all_users_info = []
-        if is_creator:
-            users_stream = db.collection("users").stream()
-            for user_doc in users_stream:
-                u_data = user_doc.to_dict()
-                u_id = user_doc.id
-                full_name = u_data.get("full_name") or f"{u_data.get('first_name', '')} {u_data.get('last_name', '')}".strip() or "Unnamed User"
-                all_users_info.append(f"📌 User: {full_name} (ID: {u_id}) | Email: {u_data.get('email', '')}")
+        users_stream = db.collection("users").stream()
+        all_users = []
         
-        # අදාළ user ගේ adaptive memory එක ලබා ගැනීම
-        adaptive_intel = get_user_adaptive_intelligence_context(user_id)
-        
-        # Creator ට පණිවිඩ සහ metrics පෙන්වීම
-        messages_summary_str = ""
-        metrics_summary = ""
-        if is_creator:
-            metrics_summary = f"\n[System Performance]: Active Users Count: {len(all_users_info)}\nAPI Stats: {json.dumps(SYSTEM_METRICS['api_calls_count'])}\n"
-            try:
-                msgs_ref = db.collection("system_messages").where("read", "==", False).limit(10).stream()
-                pending = [f"From {m.to_dict().get('sender_name')}: {m.to_dict().get('content')}" for m in msgs_ref]
-                if pending: messages_summary_str = "\n[Pending Alerts]:\n" + "\n".join(pending)
-            except: pass
+        for user_doc in users_stream:
+            u_data = user_doc.to_dict()
+            u_id = user_doc.id
+            full_name = u_data.get("full_name") or u_data.get("name") or f"{u_data.get('first_name', '')} {u_data.get('last_name', '')}".strip() or "Unnamed User"
+            
+            user_info = {
+                "id": u_id,
+                "name": full_name,
+                "email": u_data.get("email", ""),
+                "age": u_data.get("age", "Unknown"),
+                "country": u_data.get("country", "Unknown"),
+                "voice_preference": u_data.get("voice_preference", "male")
+            }
 
-        context_base = f"[System Context & Memory]:\n{adaptive_intel}\n{metrics_summary}{messages_summary_str}"
-        
+            if is_creator:
+                chats_summary = []
+                try:
+                    sessions_stream = db.collection("users").document(u_id).collection("chat_sessions").limit(5).stream()
+                    for sess in sessions_stream:
+                        sess_data = sess.to_dict()
+                        s_title = sess_data.get("title", "Untitled Session")
+                        msgs_stream = sess.collection("messages").order_by("timestamp", direction=firestore.Query.DESCENDING).limit(4).stream()
+                        msgs = []
+                        for m in msgs_stream:
+                            md = m.to_dict()
+                            msgs.append(f"{md.get('role')}: {md.get('content')}")
+                        msgs.reverse()
+                        chats_summary.append(f"Session Title: '{s_title}' -> Messages: [{ ' | '.join(msgs) }]")
+                except Exception as ce:
+                    print(f"Error reading session for {u_id}: {ce}")
+                user_info["chats"] = chats_summary
+
+            all_users.append(user_info)
+
+        messages_summary_str = ""
+        if user_email:
+            try:
+                msgs_ref = db.collection("system_messages").order_by("timestamp", direction=firestore.Query.DESCENDING).stream()
+                pending_msgs = []
+                for m in msgs_ref:
+                    md = m.to_dict()
+                    recip = md.get("recipient_email", "")
+                    if is_creator and (recip == "chamathmanujaya76@gmail.com" or recip == "all"):
+                        if not md.get("read", False):
+                            pending_msgs.append(f"From {md.get('sender_name')} ({md.get('sender_email')}): {md.get('content')}")
+                    elif not is_creator and (recip == user_email or recip == "all"):
+                        if not md.get("read", False):
+                            pending_msgs.append(f"From Creator: {md.get('content')}")
+                if pending_msgs:
+                    messages_summary_str = f"\n[Pending Messages / Feedbacks / Proactive Alerts]:\n" + "\n".join(pending_msgs) + "\n"
+            except Exception as me:
+                print(f"Error fetching messages context: {me}")
+
+        global_kb_summary = ""
         if is_creator:
-            return context_base + "\n[Registered Users (Admin View)]:\n" + "\n".join(all_users_info[:20])
-        
-        return context_base
+            try:
+                global_kb_ref = db.collection("global_knowledge_base").limit(20).stream()
+                kb_items = [f"- {d.id}: {d.to_dict().get('content', '')}" for d in global_kb_ref]
+                if kb_items:
+                    global_kb_summary = "\n[Global Knowledge Base Data]:\n" + "\n".join(kb_items) + "\n"
+            except Exception as gke:
+                print(f"Error fetching global KB: {gke}")
+
+        total_count = len(all_users)
+        adaptive_intel = get_user_adaptive_intelligence_context(user_id)
+        metrics_summary = f"\n[System Performance & Diagnostics]:\n- Active Users Count: {total_count}\n- API Calls Status: {SYSTEM_METRICS['api_calls_count']}\n- Recent Errors Log Count: {len(SYSTEM_METRICS['errors_log'])}\n"
+
+        if not is_creator:
+            return f"[System Database Stats & Self-Learning Memory]:\n- Total Registered Nexuz Users: {total_count}\n{messages_summary_str}\n{adaptive_intel}\n(Detailed user profiles and chat histories are restricted to Creator account only)."
+
+        context_lines = [f"[System Database Stats & Metrics for Creator Access]:\n- Total Users: {total_count}\n{metrics_summary}\n{global_kb_summary}\n{messages_summary_str}\n{adaptive_intel}\n"]
+        for u in all_users:
+            context_lines.append(f"📌 User: {u['name']} (ID: {u['id']})")
+            context_lines.append(f"   Email: {u['email']} | Age: {u['age']} | Country: {u['country']}")
+            if u.get("chats"):
+                context_lines.append("   Recent Conversations:")
+                for c in u["chats"]:
+                    context_lines.append(f"     - {c}")
+            else:
+                context_lines.append("   Recent Conversations: None yet.")
+            context_lines.append("")
+
+        return "\n".join(context_lines)
 
     except Exception as e:
         print(f"Error generating Firebase AI Context: {e}")
-        return "[Firebase Context Error]"
-
+        return "[Firebase Context Error: Failed to fetch live stats]"
 
 # ================= SEARCH PROVIDERS =================
 
-async def search_tavily(query: str) -> str:
+def search_tavily(query: str) -> str:
     valid_keys = [k.strip() for k in TAVILY_KEYS if k and k.strip()]
-    async with httpx.AsyncClient() as client:
-        for idx, key in enumerate(valid_keys, 1):
-            try:
-                url = "https://api.tavily.com/search"
-                payload = {"api_key": key, "query": query, "max_results": 4, "include_images": True}
-                resp = await client.post(url, json=payload, timeout=5.0)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    SYSTEM_METRICS["api_calls_count"]["Tavily"] += 1
-                    results = []
-                    for r in data.get("results", []):
-                        title = r.get("title", "")
-                        content = r.get("content", "")
-                        source_url = r.get("url", "")
-                        if title or content:
-                            results.append(f"📌 Title: {title}\nSnippet: {content}\nSource Link: {source_url}")
-                    images = data.get("images", [])
-                    if images:
-                        results.append("\n🖼️ Found Images:")
-                        for img_url in images[:3]:
-                            results.append(f"Image Direct URL: {img_url}")
-                    res_str = "\n\n".join(results)
-                    if res_str.strip():
-                        return res_str
-            except Exception as e:
-                log_system_error(f"Tavily Key {idx} failed: {e}", "Tavily")
-                continue
+    for idx, key in enumerate(valid_keys, 1):
+        try:
+            url = "https://api.tavily.com/search"
+            headers = {"Content-Type": "application/json"}
+            payload = json.dumps({"api_key": key, "query": query, "max_results": 4, "include_images": True}).encode('utf-8')
+            req = urllib.request.Request(url, data=payload, headers=headers)
+            with urllib.request.urlopen(req, timeout=4) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                SYSTEM_METRICS["api_calls_count"]["Tavily"] += 1
+                results = []
+                for r in data.get("results", []):
+                    title = r.get("title", "")
+                    content = r.get("content", "")
+                    source_url = r.get("url", "")
+                    if title or content:
+                        results.append(f"📌 Title: {title}\nSnippet: {content}\nSource Link: {source_url}")
+                images = data.get("images", [])
+                if images:
+                    results.append("\n🖼️ Found Images:")
+                    for img_url in images[:3]:
+                        results.append(f"Image Direct URL: {img_url}")
+                res_str = "\n\n".join(results)
+                if res_str.strip():
+                    return res_str
+        except Exception as e:
+            log_system_error(f"Tavily Key {idx} failed: {e}", "Tavily")
+            continue
     raise Exception("සියලුම Tavily Keys අසාර්ථක විය.")
 
-async def search_serpapi(query: str) -> str:
+def search_serpapi(query: str) -> str:
     valid_keys = [k.strip() for k in SERPAPI_KEYS if k and k.strip()]
-    async with httpx.AsyncClient() as client:
-        for idx, key in enumerate(valid_keys, 1):
-            try:
-                params = {"q": query, "api_key": key, "engine": "google"}
-                url = "https://serpapi.com/search.json"
-                resp = await client.get(url, params=params, timeout=5.0)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    SYSTEM_METRICS["api_calls_count"]["SerpAPI"] += 1
-                    results = []
-                    for r in data.get("organic_results", [])[:4]:
-                        title = r.get("title", "")
-                        snippet = r.get("snippet", "")
-                        link = r.get("link", "")
-                        if title or snippet:
-                            results.append(f"📌 Title: {title}\nSnippet: {snippet}\nSource Link: {link}")
-                    res_str = "\n\n".join(results)
-                    if res_str.strip():
-                        return res_str
-            except Exception as e:
-                log_system_error(f"SerpAPI Key {idx} failed: {e}", "SerpAPI")
-                continue
+    for idx, key in enumerate(valid_keys, 1):
+        try:
+            params = urllib.parse.urlencode({"q": query, "api_key": key, "engine": "google"})
+            url = f"https://serpapi.com/search.json?{params}"
+            req = urllib.request.Request(url)
+            with urllib.request.urlopen(req, timeout=4) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                SYSTEM_METRICS["api_calls_count"]["SerpAPI"] += 1
+                results = []
+                for r in data.get("organic_results", [])[:4]:
+                    title = r.get("title", "")
+                    snippet = r.get("snippet", "")
+                    link = r.get("link", "")
+                    if title or snippet:
+                        results.append(f"📌 Title: {title}\nSnippet: {snippet}\nSource Link: {link}")
+                res_str = "\n\n".join(results)
+                if res_str.strip():
+                    return res_str
+        except Exception as e:
+            log_system_error(f"SerpAPI Key {idx} failed: {e}", "SerpAPI")
+            continue
     raise Exception("සියලුම SerpAPI Keys අසාර්ථක විය.")
 
-async def search_google_custom(query: str) -> str:
+def search_google_custom(query: str) -> str:
     valid_keys = [k.strip() for k in GOOGLE_SEARCH_KEYS if k and k.strip()]
     valid_cxs = [c.strip() for c in GOOGLE_SEARCH_CX if c and c.strip()]
     if not valid_keys or not valid_cxs:
         raise Exception("Google Search API Keys හෝ CX IDs සකසා නොමැත.")
     
-    async with httpx.AsyncClient() as client:
-        for idx, key in enumerate(valid_keys):
-            cx = valid_cxs[idx % len(valid_cxs)]
-            try:
-                params = {"key": key, "cx": cx, "q": query}
-                url = "https://www.googleapis.com/customsearch/v1"
-                resp = await client.get(url, params=params, timeout=5.0)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    results = []
-                    for item in data.get("items", [])[:4]:
-                        title = item.get("title", "")
-                        snippet = item.get("snippet", "")
-                        link = item.get("link", "")
-                        if title or snippet:
-                            results.append(f"📌 Title: {title}\nSnippet: {snippet}\nSource Link: {link}")
-                    res_str = "\n\n".join(results)
-                    if res_str.strip():
-                        return res_str
-            except Exception as e:
-                log_system_error(f"Google Search Key {idx+1} failed: {e}", "GoogleSearch")
-                continue
+    for idx, key in enumerate(valid_keys):
+        cx = valid_cxs[idx % len(valid_cxs)]
+        try:
+            params = urllib.parse.urlencode({"key": key, "cx": cx, "q": query})
+            url = f"https://www.googleapis.com/customsearch/v1?{params}"
+            req = urllib.request.Request(url)
+            with urllib.request.urlopen(req, timeout=4) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                results = []
+                for item in data.get("items", [])[:4]:
+                    title = item.get("title", "")
+                    snippet = item.get("snippet", "")
+                    link = item.get("link", "")
+                    if title or snippet:
+                        results.append(f"📌 Title: {title}\nSnippet: {snippet}\nSource Link: {link}")
+                res_str = "\n\n".join(results)
+                if res_str.strip():
+                    return res_str
+        except Exception as e:
+            log_system_error(f"Google Search Key {idx+1} failed: {e}", "GoogleSearch")
+            continue
     raise Exception("සියලුම Google Search Keys අසාර්ථක විය.")
 
-async def search_exa(query: str) -> str:
+def search_exa(query: str) -> str:
     valid_keys = [k.strip() for k in EXA_KEYS if k and k.strip()]
-    async with httpx.AsyncClient() as client:
-        for idx, key in enumerate(valid_keys, 1):
-            try:
-                url = "https://api.exa.ai/search"
-                headers = {"x-api-key": key, "Content-Type": "application/json"}
-                payload = {"query": query, "numResults": 4}
-                resp = await client.post(url, json=payload, headers=headers, timeout=5.0)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    results = []
-                    for r in data.get("results", []):
-                        title = r.get("title", "")
-                        url_link = r.get("url", "")
-                        if title or url_link:
-                            results.append(f"📌 Title: {title}\nSource Link: {url_link}")
-                    res_str = "\n\n".join(results)
-                    if res_str.strip():
-                        return res_str
-            except Exception as e:
-                log_system_error(f"Exa Key {idx} failed: {e}", "Exa")
-                continue
+    for idx, key in enumerate(valid_keys, 1):
+        try:
+            url = "https://api.exa.ai/search"
+            headers = {"x-api-key": key, "Content-Type": "application/json"}
+            payload = json.dumps({"query": query, "numResults": 4}).encode('utf-8')
+            req = urllib.request.Request(url, data=payload, headers=headers)
+            with urllib.request.urlopen(req, timeout=4) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                results = []
+                for r in data.get("results", []):
+                    title = r.get("title", "")
+                    url_link = r.get("url", "")
+                    if title or url_link:
+                        results.append(f"📌 Title: {title}\nSource Link: {url_link}")
+                res_str = "\n\n".join(results)
+                if res_str.strip():
+                    return res_str
+        except Exception as e:
+            log_system_error(f"Exa Key {idx} failed: {e}", "Exa")
+            continue
     raise Exception("සියලුම Exa Keys අසාර්ථක විය.")
 
-async def search_ddg(query: str) -> str:
+def search_ddg(query: str) -> str:
     try:
+        from duckduckgo_search import DDGS
         results = []
         clean_query = query.strip()
-        # DDGS doesn't support async directly in some versions, 
-        # but we can run it in a thread to prevent blocking
-        def run_ddg():
-            with DDGS() as ddgs:
-                res = []
-                for r in ddgs.text(clean_query, max_results=3):
-                    res.append(f"📌 Title: {r.get('title','')}\nSnippet: {r.get('body','')}\nSource Link: {r.get('href','')}")
-                try:
-                    img_results = ddgs.images(clean_query, max_results=2)
-                    if img_results:
-                        res.append("\n🖼️ Found Web Images:")
-                        for img in img_results:
-                            if img.get('image'):
-                                res.append(f"Image Title: {img.get('title', 'Image')}\nImage URL: {img.get('image')}\nSource URL: {img.get('url', '')}")
-                except: pass
-                return "\n\n".join(res)
-        
-        return await asyncio.to_thread(run_ddg)
+        with DDGS() as ddgs:
+            for r in ddgs.text(clean_query, max_results=3):
+                title = r.get('title', '')
+                snippet = r.get('body', '')
+                link = r.get('href', '')
+                if title or snippet:
+                    results.append(f"📌 Title: {title}\nSnippet: {snippet}\nSource Link: {link}")
+            try:
+                img_results = ddgs.images(clean_query, max_results=2)
+                if img_results:
+                    results.append("\n🖼️ Found Web Images:")
+                    for img in img_results:
+                        if img.get('image'):
+                            results.append(f"Image Title: {img.get('title', 'Image')}\nImage URL: {img.get('image')}\nSource URL: {img.get('url', '')}")
+            except Exception as img_err:
+                log_system_error(f"DDG Image Search Error: {img_err}", "DDG")
+        return "\n\n".join(results)
     except Exception as err:
         log_system_error(f"DDG Search Error: {err}", "DDG")
         return ""
 
-async def web_search(query: str) -> str:
+def web_search(query: str) -> str:
     if not query or len(query.strip()) < 2:
         return ""
     search_providers = [
@@ -555,14 +603,13 @@ async def web_search(query: str) -> str:
     ]
     for provider_name, search_fn in search_providers:
         try:
-            res = await search_fn(query)
+            res = search_fn(query)
             if res and len(res.strip()) > 0:
                 print(f"Search Succeeded using [{provider_name}]")
                 return res
         except Exception as e:
             print(f"Search Provider [{provider_name}] Failed: {e}")
     return ""
-
 
 # ================= AI MODEL PROVIDERS & FALLBACK =================
 
@@ -599,144 +646,153 @@ def call_gemini(prompt_content: str, custom_system_instruction: str) -> str:
             log_system_error(f"Gemini Key {idx} client error: {key_err}", "Gemini")
     raise Exception("සියලුම Gemini API Keys සහ Models අසාර්ථක විය.")
 
-async def call_groq(prompt_content: str, custom_system_instruction: str) -> str:
+def call_groq(prompt_content: str, custom_system_instruction: str) -> str:
     valid_keys = [k.strip() for k in GROQ_KEYS if k and k.strip()]
-    if not valid_keys: raise Exception("Groq API Keys සකසා නොමැත.")
-    groq_models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
-    async with httpx.AsyncClient() as client:
-        for idx, key in enumerate(valid_keys, 1):
-            for model in groq_models:
-                try:
-                    url = "https://api.groq.com/openai/v1/chat/completions"
-                    headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
-                    payload = {
-                        "model": model,
-                        "messages": [{"role": "system", "content": custom_system_instruction}, {"role": "user", "content": prompt_content}],
-                        "temperature": 0.7
-                    }
-                    resp = await client.post(url, json=payload, headers=headers, timeout=10.0)
-                    if resp.status_code == 200:
-                        res_data = resp.json()
-                        reply = res_data["choices"][0]["message"]["content"]
-                        if reply and reply.strip():
-                            SYSTEM_METRICS["api_calls_count"]["Groq"] += 1
-                            return reply
-                except Exception as e:
-                    log_system_error(f"Groq Key {idx} ({model}) failed: {e}", "Groq")
+    if not valid_keys:
+        raise Exception("Groq API Keys සකසා නොමැත.")
+    
+    groq_models = ["llama-3.1-8b-instant", "llama-3.3-70b-specdec"]
+
+    for idx, key in enumerate(valid_keys, 1):
+        for model in groq_models:
+            try:
+                url = "https://api.groq.com/openai/v1/chat/completions"
+                headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+                payload = json.dumps({
+                    "model": model,
+                    "messages": [{"role": "system", "content": custom_system_instruction}, {"role": "user", "content": prompt_content}],
+                    "temperature": 0.7
+                }).encode('utf-8')
+                req = urllib.request.Request(url, data=payload, headers=headers)
+                with urllib.request.urlopen(req, timeout=6) as resp:
+                    res_data = json.loads(resp.read().decode('utf-8'))
+                    reply = res_data["choices"][0]["message"]["content"]
+                    if reply and reply.strip():
+                        SYSTEM_METRICS["api_calls_count"]["Groq"] += 1
+                        SYSTEM_METRICS["token_usage_estimated"] += len(prompt_content.split()) + len(reply.split())
+                        return reply
+            except Exception as e:
+                log_system_error(f"Groq Key {idx} ({model}) failed: {e}", "Groq")
+                continue
     raise Exception("සියලුම Groq Keys අසාර්ථක විය.")
 
-async def call_openrouter(prompt_content: str, custom_system_instruction: str) -> str:
+def call_openrouter(prompt_content: str, custom_system_instruction: str) -> str:
     valid_keys = [k.strip() for k in OPENROUTER_KEYS if k and k.strip()]
-    async with httpx.AsyncClient() as client:
-        for idx, key in enumerate(valid_keys, 1):
-            try:
-                url = "https://openrouter.ai/api/v1/chat/completions"
-                headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
-                payload = {
-                    "model": "openrouter/auto",
-                    "messages": [{"role": "system", "content": custom_system_instruction}, {"role": "user", "content": prompt_content}],
-                    "temperature": 0.7
-                }
-                resp = await client.post(url, json=payload, headers=headers, timeout=15.0)
-                if resp.status_code == 200:
-                    res_data = resp.json()
-                    reply = res_data["choices"][0]["message"]["content"]
-                    if reply and reply.strip():
-                        SYSTEM_METRICS["api_calls_count"]["OpenRouter"] += 1
-                        return reply
-            except Exception as e:
-                log_system_error(f"OpenRouter Key {idx} failed: {e}", "OpenRouter")
+    for idx, key in enumerate(valid_keys, 1):
+        try:
+            url = "https://openrouter.ai/api/v1/chat/completions"
+            headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+            payload = json.dumps({
+                "model": "openrouter/auto",
+                "messages": [{"role": "system", "content": custom_system_instruction}, {"role": "user", "content": prompt_content}],
+                "temperature": 0.7
+            }).encode('utf-8')
+            req = urllib.request.Request(url, data=payload, headers=headers)
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                res_data = json.loads(resp.read().decode('utf-8'))
+                reply = res_data["choices"][0]["message"]["content"]
+                if reply and reply.strip():
+                    SYSTEM_METRICS["api_calls_count"]["OpenRouter"] += 1
+                    SYSTEM_METRICS["token_usage_estimated"] += len(prompt_content.split()) + len(reply.split())
+                    return reply
+        except Exception as e:
+            log_system_error(f"OpenRouter Key {idx} failed: {e}", "OpenRouter")
+            continue
     raise Exception("සියලුම OpenRouter Keys අසාර්ථක විය.")
 
-async def call_cerebras(prompt_content: str, custom_system_instruction: str) -> str:
+def call_cerebras(prompt_content: str, custom_system_instruction: str) -> str:
     valid_keys = [k.strip() for k in CEREBRAS_KEYS if k and k.strip()]
-    async with httpx.AsyncClient() as client:
-        for idx, key in enumerate(valid_keys, 1):
-            try:
-                url = "https://api.cerebras.ai/v1/chat/completions"
-                headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
-                payload = {
-                    "model": "llama3.1-70b",
-                    "messages": [{"role": "system", "content": custom_system_instruction}, {"role": "user", "content": prompt_content}],
-                    "temperature": 0.7
-                }
-                resp = await client.post(url, json=payload, headers=headers, timeout=10.0)
-                if resp.status_code == 200:
-                    res_data = resp.json()
-                    reply = res_data["choices"][0]["message"]["content"]
-                    if reply and reply.strip():
-                        SYSTEM_METRICS["api_calls_count"]["Cerebras"] += 1
-                        return reply
-            except Exception as e:
-                log_system_error(f"Cerebras Key {idx} failed: {e}", "Cerebras")
+    for idx, key in enumerate(valid_keys, 1):
+        try:
+            url = "https://api.cerebras.ai/v1/chat/completions"
+            headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+            payload = json.dumps({
+                "model": "llama3.1-70b",
+                "messages": [{"role": "system", "content": custom_system_instruction}, {"role": "user", "content": prompt_content}],
+                "temperature": 0.7
+            }).encode('utf-8')
+            req = urllib.request.Request(url, data=payload, headers=headers)
+            with urllib.request.urlopen(req, timeout=6) as resp:
+                res_data = json.loads(resp.read().decode('utf-8'))
+                reply = res_data["choices"][0]["message"]["content"]
+                if reply and reply.strip():
+                    SYSTEM_METRICS["api_calls_count"]["Cerebras"] += 1
+                    SYSTEM_METRICS["token_usage_estimated"] += len(prompt_content.split()) + len(reply.split())
+                    return reply
+        except Exception as e:
+            log_system_error(f"Cerebras Key {idx} failed: {e}", "Cerebras")
+            continue
     raise Exception("සියලුම Cerebras Keys අසාර්ථක විය.")
 
-async def call_together(prompt_content: str, custom_system_instruction: str) -> str:
+def call_together(prompt_content: str, custom_system_instruction: str) -> str:
     valid_keys = [k.strip() for k in TOGETHER_KEYS if k and k.strip()]
-    async with httpx.AsyncClient() as client:
-        for idx, key in enumerate(valid_keys, 1):
-            try:
-                url = "https://api.together.xyz/v1/chat/completions"
-                headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
-                payload = {
-                    "model": "meta-llama/Llama-3-70b-chat-hf",
-                    "messages": [{"role": "system", "content": custom_system_instruction}, {"role": "user", "content": prompt_content}],
-                    "temperature": 0.7
-                }
-                resp = await client.post(url, json=payload, headers=headers, timeout=15.0)
-                if resp.status_code == 200:
-                    res_data = resp.json()
-                    reply = res_data["choices"][0]["message"]["content"]
-                    if reply and reply.strip():
-                        SYSTEM_METRICS["api_calls_count"]["Together"] += 1
-                        return reply
-            except Exception as e:
-                log_system_error(f"Together Key {idx} failed: {e}", "Together")
+    for idx, key in enumerate(valid_keys, 1):
+        try:
+            url = "https://api.together.xyz/v1/chat/completions"
+            headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+            payload = json.dumps({
+                "model": "meta-llama/Llama-3-70b-chat-hf",
+                "messages": [{"role": "system", "content": custom_system_instruction}, {"role": "user", "content": prompt_content}],
+                "temperature": 0.7
+            }).encode('utf-8')
+            req = urllib.request.Request(url, data=payload, headers=headers)
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                res_data = json.loads(resp.read().decode('utf-8'))
+                reply = res_data["choices"][0]["message"]["content"]
+                if reply and reply.strip():
+                    SYSTEM_METRICS["api_calls_count"]["Together"] += 1
+                    SYSTEM_METRICS["token_usage_estimated"] += len(prompt_content.split()) + len(reply.split())
+                    return reply
+        except Exception as e:
+            log_system_error(f"Together Key {idx} failed: {e}", "Together")
+            continue
     raise Exception("සියලුම Together AI Keys අසාර්ථක විය.")
 
-async def call_deepinfra(prompt_content: str, custom_system_instruction: str) -> str:
+def call_deepinfra(prompt_content: str, custom_system_instruction: str) -> str:
     valid_keys = [k.strip() for k in DEEPINFRA_KEYS if k and k.strip()]
-    async with httpx.AsyncClient() as client:
-        for idx, key in enumerate(valid_keys, 1):
-            try:
-                url = "https://api.deepinfra.com/v1/openai/chat/completions"
-                headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
-                payload = {
-                    "model": "meta-llama/Meta-Llama-3-70B-Instruct",
-                    "messages": [{"role": "system", "content": custom_system_instruction}, {"role": "user", "content": prompt_content}],
-                    "temperature": 0.7
-                }
-                resp = await client.post(url, json=payload, headers=headers, timeout=15.0)
-                if resp.status_code == 200:
-                    res_data = resp.json()
-                    reply = res_data["choices"][0]["message"]["content"]
-                    if reply and reply.strip():
-                        SYSTEM_METRICS["api_calls_count"]["DeepInfra"] += 1
-                        return reply
-            except Exception as e:
-                log_system_error(f"DeepInfra Key {idx} failed: {e}", "DeepInfra")
+    for idx, key in enumerate(valid_keys, 1):
+        try:
+            url = "https://api.deepinfra.com/v1/openai/chat/completions"
+            headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+            payload = json.dumps({
+                "model": "meta-llama/Meta-Llama-3-70B-Instruct",
+                "messages": [{"role": "system", "content": custom_system_instruction}, {"role": "user", "content": prompt_content}],
+                "temperature": 0.7
+            }).encode('utf-8')
+            req = urllib.request.Request(url, data=payload, headers=headers)
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                res_data = json.loads(resp.read().decode('utf-8'))
+                reply = res_data["choices"][0]["message"]["content"]
+                if reply and reply.strip():
+                    SYSTEM_METRICS["api_calls_count"]["DeepInfra"] += 1
+                    SYSTEM_METRICS["token_usage_estimated"] += len(prompt_content.split()) + len(reply.split())
+                    return reply
+        except Exception as e:
+            log_system_error(f"DeepInfra Key {idx} failed: {e}", "DeepInfra")
+            continue
     raise Exception("සියලුම DeepInfra Keys අසාර්ථක විය.")
 
-async def call_cohere(prompt_content: str, custom_system_instruction: str) -> str:
+def call_cohere(prompt_content: str, custom_system_instruction: str) -> str:
     valid_keys = [k.strip() for k in COHERE_KEYS if k and k.strip()]
-    async with httpx.AsyncClient() as client:
-        for idx, key in enumerate(valid_keys, 1):
-            try:
-                url = "https://api.cohere.ai/v1/chat"
-                headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
-                payload = {"model": "command-r-plus", "message": prompt_content, "preamble": custom_system_instruction}
-                resp = await client.post(url, json=payload, headers=headers, timeout=15.0)
-                if resp.status_code == 200:
-                    res_data = resp.json()
-                    reply = res_data.get("text", "")
-                    if reply and reply.strip():
-                        SYSTEM_METRICS["api_calls_count"]["Cohere"] += 1
-                        return reply
-            except Exception as e:
-                log_system_error(f"Cohere Key {idx} failed: {e}", "Cohere")
+    for idx, key in enumerate(valid_keys, 1):
+        try:
+            url = "https://api.cohere.ai/v1/chat"
+            headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+            payload = json.dumps({"model": "command-r-plus", "message": prompt_content, "preamble": custom_system_instruction}).encode('utf-8')
+            req = urllib.request.Request(url, data=payload, headers=headers)
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                res_data = json.loads(resp.read().decode('utf-8'))
+                reply = res_data.get("text", "")
+                if reply and reply.strip():
+                    SYSTEM_METRICS["api_calls_count"]["Cohere"] += 1
+                    SYSTEM_METRICS["token_usage_estimated"] += len(prompt_content.split()) + len(reply.split())
+                    return reply
+        except Exception as e:
+            log_system_error(f"Cohere Key {idx} failed: {e}", "Cohere")
+            continue
     raise Exception("සියලුම Cohere Keys අසාර්ථක විය.")
 
-async def generate_ai_response_fallback(prompt_content: str, custom_system_instruction: str):
+def generate_ai_response_fallback(prompt_content: str, custom_system_instruction: str):
     start_time = time.time()
     ai_providers = [
         ("Gemini API (Priority 1)", call_gemini),
@@ -751,23 +807,20 @@ async def generate_ai_response_fallback(prompt_content: str, custom_system_instr
     for provider_name, provider_fn in ai_providers:
         try:
             print(f"Attempting AI Response via [{provider_name}]...")
-            # If it's a coroutine (async), await it. call_gemini is sync (google-genai client).
-            if asyncio.iscoroutinefunction(provider_fn):
-                reply = await provider_fn(prompt_content, custom_system_instruction)
-            else:
-                reply = provider_fn(prompt_content, custom_system_instruction)
-            
+            reply = provider_fn(prompt_content, custom_system_instruction)
             if reply and len(reply.strip()) > 0:
                 elapsed = round((time.time() - start_time) * 1000, 2)
                 SYSTEM_METRICS["response_times"].insert(0, {"time": datetime.utcnow().strftime("%H:%M:%S"), "ms": elapsed, "provider": provider_name})
-                if len(SYSTEM_METRICS["response_times"]) > 20: SYSTEM_METRICS["response_times"].pop()
+                if len(SYSTEM_METRICS["response_times"]) > 20:
+                    SYSTEM_METRICS["response_times"].pop()
+                print(f"Successfully generated response via [{provider_name}] in {elapsed}ms")
                 return reply, provider_name
         except Exception as e:
             err_msg = str(e)
+            print(f"AI Provider [{provider_name}] Error: {err_msg}")
             errors.append(f"{provider_name}: {err_msg}")
             log_system_error(err_msg, provider_name)
     raise Exception(f"සියලුම AI Providers සහ Multi-Keys ක්‍රියා විරහිතයි: {'; '.join(errors)}")
-
 
 # ================= SYSTEM INSTRUCTIONS & MODELS =================
 
@@ -1228,9 +1281,8 @@ async def chat_endpoint(req: ChatRequest):
     user_prompt = req.message
     search_context = ""
 
-    # Web Search එක දැන් await කරලා වේගයෙන් ලබාගත හැක
     if req.enable_search:
-        search_context = await web_search(user_prompt)
+        search_context = web_search(user_prompt)
 
     context_str = ""
     if req.history and len(req.history) > 0:
@@ -1246,8 +1298,7 @@ async def chat_endpoint(req: ChatRequest):
 
     user_first_name = req.first_name or "User"
     user_full_name = req.full_name or user_first_name
-    # CREATOR_EMAIL variable එක භාවිතා කිරීම
-    is_creator = (req.email and req.email.strip().lower() == CREATOR_EMAIL)
+    is_creator = (req.email and req.email.strip().lower() == "chamathmanujaya76@gmail.com")
 
     firebase_context = get_firebase_context_for_ai(user_id=req.user_id, is_creator=is_creator, user_email=req.email)
     local_vault_context = get_local_user_vault_context(req.user_id, user_full_name)
@@ -1260,8 +1311,7 @@ async def chat_endpoint(req: ChatRequest):
         custom_system_instruction = system_instruction + f"\n\nපරිශීලකයාගේ සම්පූර්ණ නම: {user_full_name}. පළමු නම: {user_first_name}."
 
     try:
-        # මෙහිදී generate_ai_response_fallback එක දැන් await කළ යුතුය
-        bot_reply, active_provider = await generate_ai_response_fallback(prompt_content, custom_system_instruction)
+        bot_reply, active_provider = generate_ai_response_fallback(prompt_content, custom_system_instruction)
     except Exception as e:
         err_str = str(e)
         log_system_error(err_str, "FallbackEngine")
@@ -1298,7 +1348,6 @@ async def chat_endpoint(req: ChatRequest):
         "search_used": bool(search_context),
         "provider": active_provider
     }
-
 
 @app.websocket("/ws/live")
 async def websocket_live_voice(websocket: WebSocket):
