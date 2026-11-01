@@ -11,82 +11,91 @@
 </head>
 <body>
 
-    <!-- USER ACCOUNT REGISTRATION & LOGIN MODAL -->
+    <!-- USER ACCOUNT REGISTRATION & LOGIN MODAL WITH ANIMATED SLIDER & WELCOME PANEL -->
     <div class="auth-modal-overlay" id="authModal">
         <div class="auth-card">
-            <div class="auth-header">
-                <h2><i class="fa-solid fa-sparkles" style="color: #7B00FF;"></i> Nexuz AI</h2>
-                <p id="authSubtitle">ඇප් එක පාවිච්චි කිරීමට ඔබගේ Account එක සාදන්න</p>
+            <div class="auth-card-split">
+                <div class="auth-form-side">
+                    <div class="auth-header">
+                        <h2><i class="fa-solid fa-sparkles" style="color: #7B00FF;"></i> Nexuz AI</h2>
+                        <p id="authSubtitle">ඇප් එක පාවිච්චි කිරීමට ඔබගේ Account එක සාදන්න</p>
+                    </div>
+
+                    <form class="auth-form" id="registerForm" onsubmit="handleRegister(event)">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>පළමු නම (First Name)</label>
+                                <input type="text" id="regFirstName" placeholder="Chamath" required>
+                            </div>
+                            <div class="form-group">
+                                <label>දෙවන නම (Last Name)</label>
+                                <input type="text" id="regLastName" placeholder="Manujaya" required>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>වයස (Age)</label>
+                                <input type="number" id="regAge" placeholder="20" min="10" max="100" required>
+                            </div>
+                            <div class="form-group">
+                                <label>රට (Country)</label>
+                                <input type="text" id="regCountry" placeholder="Sri Lanka" required>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>පාවිච්චි කරන අරමුණ (Purpose)</label>
+                            <select id="regPurpose" required>
+                                <option value="Personal Use">Personal Use / පුද්ගලික භාවිතයට</option>
+                                <option value="Education">Education / අධ්‍යාපනික වැඩවලට</option>
+                                <option value="Software Development">Software Development / ක්‍රමලේඛනය</option>
+                                <option value="Business">Business / ව්‍යාපාරික කටයුතු වලට</option>
+                                <option value="Other">Other / වෙනත්</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>විද්‍යුත් තැපෑල (Email)</label>
+                            <input type="email" id="regEmail" placeholder="example@mail.com" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label>මුරපදය (Password)</label>
+                            <input type="password" id="regPassword" placeholder="••••••••" required>
+                        </div>
+
+                        <button type="submit" class="auth-btn">Account එක සාදන්න</button>
+
+                        <div class="auth-switch">
+                            මීට පෙර Account එකක් සෑදුවාද? <a onclick="toggleAuthMode('login')">Sign In වන්න</a>
+                        </div>
+                    </form>
+
+                    <form class="auth-form" id="loginForm" onsubmit="handleLogin(event)" style="display: none;">
+                        <div class="form-group">
+                            <label>විද්‍යුත් තැපෑල (Email)</label>
+                            <input type="email" id="loginEmail" placeholder="example@mail.com" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label>මුරපදය (Password)</label>
+                            <input type="password" id="loginPassword" placeholder="••••••••" required>
+                        </div>
+
+                        <button type="submit" class="auth-btn">Sign In වන්න</button>
+
+                        <div class="auth-switch">
+                            තවම Account එකක් නැද්ද? <a onclick="toggleAuthMode('register')">නව Account එකක් සාදන්න</a>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="auth-welcome-side">
+                    <h1>WELCOME TO NEXUZ</h1>
+                    <p>ඔබව සාදරයෙන් පිළිගනිමු! ඔබගේ පුද්ගලික බුද්ධිමත් සහකරු සමඟ නව අත්දැකීමක් විඳින්න.</p>
+                </div>
             </div>
-
-            <form class="auth-form" id="registerForm" onsubmit="handleRegister(event)">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>පළමු නම (First Name)</label>
-                        <input type="text" id="regFirstName" placeholder="Chamath" required>
-                    </div>
-                    <div class="form-group">
-                        <label>දෙවන නම (Last Name)</label>
-                        <input type="text" id="regLastName" placeholder="Manujaya" required>
-                    </div>
-                </div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>වයස (Age)</label>
-                        <input type="number" id="regAge" placeholder="20" min="10" max="100" required>
-                    </div>
-                    <div class="form-group">
-                        <label>රට (Country)</label>
-                        <input type="text" id="regCountry" placeholder="Sri Lanka" required>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label>පාවිච්චි කරන අරමුණ (Purpose)</label>
-                    <select id="regPurpose" required>
-                        <option value="Personal Use">Personal Use / පුද්ගලික භාවිතයට</option>
-                        <option value="Education">Education / අධ්‍යාපනික වැඩවලට</option>
-                        <option value="Software Development">Software Development / ක්‍රමලේඛනය</option>
-                        <option value="Business">Business / ව්‍යාපාරික කටයුතු වලට</option>
-                        <option value="Other">Other / වෙනත්</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>විද්‍යුත් තැපෑල (Email)</label>
-                    <input type="email" id="regEmail" placeholder="example@mail.com" required>
-                </div>
-
-                <div class="form-group">
-                    <label>මුරපදය (Password)</label>
-                    <input type="password" id="regPassword" placeholder="••••••••" required>
-                </div>
-
-                <button type="submit" class="auth-btn">Account එක සාදන්න</button>
-
-                <div class="auth-switch">
-                    මීට පෙර Account එකක් සෑදුවාද? <a onclick="toggleAuthMode('login')">Sign In වන්න</a>
-                </div>
-            </form>
-
-            <form class="auth-form" id="loginForm" onsubmit="handleLogin(event)" style="display: none;">
-                <div class="form-group">
-                    <label>විද්‍යුත් තැපෑල (Email)</label>
-                    <input type="email" id="loginEmail" placeholder="example@mail.com" required>
-                </div>
-
-                <div class="form-group">
-                    <label>මුරපදය (Password)</label>
-                    <input type="password" id="loginPassword" placeholder="••••••••" required>
-                </div>
-
-                <button type="submit" class="auth-btn">Sign In වන්න</button>
-
-                <div class="auth-switch">
-                    තවම Account එකක් නැද්ද? <a onclick="toggleAuthMode('register')">නව Account එකක් සාදන්න</a>
-                </div>
-            </form>
         </div>
     </div>
 

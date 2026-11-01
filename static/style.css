@@ -1,4 +1,4 @@
-/* style.css - Complete Code */
+/* style.css - Complete Code with Login Animation & Transparency */
 * {
     margin: 0;
     padding: 0;
@@ -872,14 +872,15 @@ body {
     font-weight: 700;
 }
 
+/* ================= AUTH MODAL ANIMATED SLIDER & TRANSPARENCY ================= */
 .auth-modal-overlay {
     position: fixed;
     top: 0;
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: url('/static/logo3.png') no-repeat center center fixed;
-    background-size: cover;
+    background: rgba(0, 0, 0, 0.82);
+    backdrop-filter: blur(10px);
     z-index: 10000;
     display: flex;
     align-items: center;
@@ -889,26 +890,81 @@ body {
 
 .auth-card {
     width: 100%;
-    max-width: 460px;
-    background: rgba(10, 5, 25, 0.4) !important;
-    backdrop-filter: blur(12px) !important;
-    -webkit-backdrop-filter: blur(12px) !important;
-    border: 1.5px solid rgba(123, 0, 255, 0.5) !important;
-    border-radius: 24px;
-    padding: 30px;
-    box-shadow: 0 0 35px rgba(123, 0, 255, 0.4), inset 0 0 20px rgba(123, 0, 255, 0.15);
+    max-width: 780px;
+    background: rgba(10, 4, 22, 0.68) !important;
+    backdrop-filter: blur(20px) !important;
+    -webkit-backdrop-filter: blur(20px) !important;
+    border: 2px solid #7B00FF !important;
+    border-radius: 28px;
+    padding: 35px;
+    box-shadow: 0 0 45px rgba(123, 0, 255, 0.6), inset 0 0 25px rgba(123, 0, 255, 0.2);
     color: #ffffff;
     position: relative;
-    max-height: 90vh;
+    max-height: 92vh;
+    overflow-y: auto;
+    animation: authCardScaleIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+@keyframes authCardScaleIn {
+    0% { transform: scale(0.92); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.auth-card-split {
+    display: flex;
+    gap: 30px;
+    align-items: stretch;
+}
+
+.auth-form-side {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.auth-welcome-side {
+    flex: 1;
+    background: linear-gradient(135deg, #7B00FF 0%, #0044FF 100%);
+    border-radius: 20px;
+    padding: 30px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    box-shadow: 0 0 30px rgba(123, 0, 255, 0.7);
+    animation: slideInPanel 0.5s ease-in-out;
+}
+
+@keyframes slideInPanel {
+    0% { transform: translateX(30px); opacity: 0; }
+    100% { transform: translateX(0); opacity: 1; }
+}
+
+.auth-welcome-side h1 {
+    font-size: 32px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    color: #ffffff;
+    margin-bottom: 12px;
+    text-shadow: 0 0 15px rgba(0,0,0,0.5);
+}
+
+.auth-welcome-side p {
+    font-size: 14px;
+    color: #e2e8f0;
+    line-height: 1.6;
+}
+
+/* SETTINGS MODAL TRANSPARENCY ENHANCEMENT */
 .modern-gemini-settings {
     max-width: 680px !important;
     padding: 25px !important;
-    background: rgba(10, 4, 22, 0.85) !important;
-    backdrop-filter: blur(25px) !important;
+    background: rgba(10, 4, 22, 0.75) !important;
+    backdrop-filter: blur(30px) !important;
     border: 2px solid #7B00FF !important;
-    box-shadow: 0 0 35px rgba(123, 0, 255, 0.6), 0 0 65px rgba(0, 68, 255, 0.4) !important;
+    box-shadow: 0 0 45px rgba(123, 0, 255, 0.7), 0 0 80px rgba(0, 68, 255, 0.5) !important;
     display: flex;
     flex-direction: column;
     gap: 15px;
