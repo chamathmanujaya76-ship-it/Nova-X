@@ -878,10 +878,8 @@ body {
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: linear-gradient(135deg, rgba(2, 0, 10, 0.85) 0%, rgba(5, 2, 20, 0.9) 100%), 
-                url('/static/logo3.png') no-repeat center center fixed;
+    background: url('/static/logo3.png') no-repeat center center fixed;
     background-size: cover;
-    backdrop-filter: blur(6px);
     z-index: 10000;
     display: flex;
     align-items: center;
@@ -892,13 +890,13 @@ body {
 .auth-card {
     width: 100%;
     max-width: 460px;
-    background: rgba(6, 3, 14, 0.45) !important;
-    backdrop-filter: blur(16px) !important;
-    -webkit-backdrop-filter: blur(16px) !important;
-    border: 1.8px solid rgba(123, 0, 255, 0.6) !important;
+    background: rgba(10, 5, 25, 0.4) !important;
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border: 1.5px solid rgba(123, 0, 255, 0.5) !important;
     border-radius: 24px;
     padding: 30px;
-    box-shadow: 0 0 45px rgba(123, 0, 255, 0.5), 0 0 75px rgba(0, 68, 255, 0.3);
+    box-shadow: 0 0 35px rgba(123, 0, 255, 0.4), inset 0 0 20px rgba(123, 0, 255, 0.15);
     color: #ffffff;
     position: relative;
     max-height: 90vh;
