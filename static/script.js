@@ -1142,7 +1142,7 @@ function startVoiceToText() {
 }
 
 // =========================================================================
-// THREE.JS AUDIO-REACTIVE NEON WIREFRAME SPHERE & PARTICLE DUST ENGINE (Replaces Face)
+// THREE.JS AUDIO-REACTIVE NEON WIREFRAME SPHERE & PARTICLE DUST ENGINE
 // =========================================================================
 
 function initThreeGlowVisualizer() {
@@ -1161,14 +1161,8 @@ function initThreeGlowVisualizer() {
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-    window.addEventListener('resize', () => {
-        if (!camera || !renderer) return;
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-    });
+    window.addEventListener('resize', onWindowResize);
 
-    // 1. Neon Wireframe Sphere (IcosahedronGeometry for high detail grid)
     const geometry = new THREE.IcosahedronGeometry(2.1, 4);
     const positionAttribute = geometry.attributes.position;
     originalPositions = new Float32Array(positionAttribute.array);
@@ -1183,7 +1177,6 @@ function initThreeGlowVisualizer() {
     sphereMesh = new THREE.Mesh(geometry, material);
     scene.add(sphereMesh);
 
-    // 2. Background Particle Dust Sphere
     const particleGeo = new THREE.BufferGeometry();
     const particleCount = 1400;
     const posArray = new Float32Array(particleCount * 3);
@@ -1199,6 +1192,13 @@ function initThreeGlowVisualizer() {
     const particleMat = new THREE.PointsMaterial({ size: 0.04, color: 0xd946ef, transparent: true, opacity: 0.7 });
     particleDustSystem = new THREE.Points(particleGeo, particleMat);
     scene.add(particleDustSystem);
+}
+
+function onWindowResize() {
+    if (!camera || !renderer) return;
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
 function initAudioVisualizer() {
@@ -1219,14 +1219,12 @@ function visualizeAudio() {
         const positions = sphereMesh.geometry.attributes.position;
         const vertex = new THREE.Vector3();
 
-        // Dynamic Neon Color shift between Neon Blue and Magenta/Purple
         const hue = (Math.sin(waveTime * 0.2) + 1) * 0.15 + 0.52;
         sphereMesh.material.color.setHSL(hue, 0.95, 0.6);
 
         for (let i = 0; i < positions.count; i++) {
             vertex.fromArray(originalPositions, i * 3);
             
-            // Audio-reactive vertex displacement (Waves & pulsating shape matching image)
             const length = vertex.length() + Math.sin(waveTime * 5 + i * 0.35) * (isAiSpeaking ? 0.42 : 0.12);
             vertex.normalize().multiplyScalar(length);
 
@@ -1319,6 +1317,7 @@ function closeLiveVoiceMode() {
     isLiveVoiceActive = false;
     isAiSpeaking = false;
     isRecognitionRunning = false;
+
     if (recognition) {
         try { 
             recognition.onresult = null;
@@ -1328,12 +1327,33 @@ function closeLiveVoiceMode() {
         } catch(e){}
         recognition = null;
     }
+
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-    if (micStream) micStream.getTracks().forEach(t => t.stop());
-    if (animFrameId) cancelAnimationFrame(animFrameId);
-    if (liveSocket) liveSocket.close();
     
-    document.getElementById("liveVoiceOverlay").classList.remove("active");
+    if (micStream) {
+        micStream.getTracks().forEach(t => t.stop());
+        micStream = null;
+    }
+
+    if (animFrameId) {
+        cancelAnimationFrame(animFrameId);
+        animFrameId = null;
+    }
+
+    if (renderer) {
+        renderer.dispose();
+        renderer = null;
+    }
+
+    if (liveSocket) {
+        liveSocket.close();
+        liveSocket = null;
+    }
+
+    window.removeEventListener('resize', onWindowResize);
+    
+    const overlay = document.getElementById("liveVoiceOverlay");
+    if (overlay) overlay.classList.remove("active");
 }
 
 function cleanTextForSpeech(text) {
