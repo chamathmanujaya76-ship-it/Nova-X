@@ -1,5 +1,5 @@
 fastapi
-uvicorn
+uvicorn[standard]
 google-genai
 duckduckgo-search
 firebase-admin

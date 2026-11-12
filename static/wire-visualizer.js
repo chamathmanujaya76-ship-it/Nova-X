@@ -25,7 +25,8 @@
         sphereLon: 84,
         haloCount: 1700,
         shardCount: 240,
-        tintBackground: true
+        tintBackground: true,
+        useOriginalSphere: false   // true = display type "sphere" uses the icosahedron engine inside script.js instead of this orb
     };
     window.NEXUZ_WIRE = WIRE;
 
@@ -35,11 +36,12 @@
     // ---- safe accessors for the globals that live in script.js -------------
     const isLive = () => (typeof isLiveVoiceActive !== 'undefined') && isLiveVoiceActive;
     const aiSpeaking = () => (typeof isAiSpeaking !== 'undefined') && isAiSpeaking;
+    // script.js treats a missing display_type as "sphere", so do the same here
     const getMode = () => {
         try {
-            const t = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.display_type : 'face';
-            return t === 'sphere' ? 'sphere' : 'face';
-        } catch (e) { return 'face'; }
+            const t = (typeof currentUser !== 'undefined' && currentUser && currentUser.display_type) ? currentUser.display_type : 'sphere';
+            return t === 'face' ? 'face' : 'sphere';
+        } catch (e) { return 'sphere'; }
     };
 
     // ---- math helpers ------------------------------------------------------
@@ -49,7 +51,7 @@
 
     // ---- state -------------------------------------------------------------
     const W = {
-        ready: false, failed: false, raf: 0, last: 0,
+        ready: false, failed: false, delegated: false, raf: 0, last: 0,
         renderer: null, scene: null, camera: null, root: null,
         mode: 'face', mix: 0, level: 0, userPulse: 0,
         sphere: null, halo: null, face: null, shards: null,
@@ -62,7 +64,7 @@
 
     function primeAudio() {
         try {
-            if (aCtx) { if (aCtx.state === 'suspended') aCtx.resume(); return; }
+            if (aCtx) { if (aCtx.state === 'suspended') aCtx.resume().catch(() => {}); return; }
             const AC = window.AudioContext || window.webkitAudioContext;
             if (!AC) return;
             aCtx = new AC();
@@ -71,7 +73,9 @@
             aNode.smoothingTimeConstant = 0.55;
             aNode.connect(aCtx.destination);
             aData = new Uint8Array(aNode.frequencyBinCount);
-            if (aCtx.state === 'suspended') aCtx.resume();
+            // a suspended context would silence the voice once tapped - resume whenever the browser suspends it
+            aCtx.onstatechange = () => { if (aCtx && aCtx.state === 'suspended') aCtx.resume().catch(() => {}); };
+            if (aCtx.state === 'suspended') aCtx.resume().catch(() => {});
         } catch (e) { aCtx = null; }
     }
     ['pointerdown', 'keydown', 'touchstart', 'click'].forEach((ev) =>
@@ -103,6 +107,20 @@
         el.__wireWatched = true;
         new MutationObserver(() => { W.userPulse = 1; })
             .observe(el, { childList: true, characterData: true, subtree: true });
+    }
+
+    // script.js cancels our animation frame when Live mode closes, so our loop never gets a chance to clean up.
+    // Watch the overlay instead: as soon as it loses its "active" class, remove the backdrop / glow we added.
+    function watchOverlay() {
+        const el = document.getElementById('liveVoiceOverlay');
+        if (!el || el.__wireWatched || typeof MutationObserver === 'undefined') return;
+        el.__wireWatched = true;
+        new MutationObserver(() => {
+            if (!el.classList.contains('active')) {
+                if (W.raf) { cancelAnimationFrame(W.raf); W.raf = 0; }
+                resetStyle();
+            }
+        }).observe(el, { attributes: true, attributeFilter: ['class'] });
     }
 
     function realLevel() {
@@ -451,6 +469,7 @@
         if (W.raf) { cancelAnimationFrame(W.raf); W.raf = 0; }
         disposeScene();
         watchTranscript();
+        watchOverlay();
 
         W.mode = getMode();
         W.mix = 0; W.level = 0; W.userPulse = 0; W.face = null; W.ready = false;
@@ -549,18 +568,32 @@
         W.raf = requestAnimationFrame(loop);
     }
 
+    // give the canvas back to script.js (only one WebGL renderer may own it at a time)
+    function releaseCanvas() {
+        if (W.raf) { cancelAnimationFrame(W.raf); W.raf = 0; }
+        resetStyle();
+        disposeScene();
+        if (W.renderer) { try { W.renderer.dispose(); } catch (e) { /* ignore */ } W.renderer = null; }
+        W.ready = false;
+    }
+
     // ---- re-point the two functions script.js already calls ----------------
     window.initThreeGlowVisualizer = function () {
-        if (!WIRE.enabled || W.failed) return origInit.apply(this, arguments);
+        W.delegated = !WIRE.enabled || W.failed || (WIRE.useOriginalSphere && getMode() === 'sphere');
+        if (W.delegated) {
+            releaseCanvas();
+            return origInit.apply(this, arguments);
+        }
         try { wireInit(); }
         catch (e) {
             console.warn('[NexuzWire] WebGL setup failed, using the original visualizer:', e);
-            W.failed = true;
+            W.failed = true; W.delegated = true;
+            releaseCanvas();
             return origInit.apply(this, arguments);
         }
     };
     window.visualizeAudio = function () {
-        if (!WIRE.enabled || W.failed) return origVis.apply(this, arguments);
+        if (W.delegated || !WIRE.enabled || W.failed) return origVis.apply(this, arguments);
         wireStart();
     };
 })();

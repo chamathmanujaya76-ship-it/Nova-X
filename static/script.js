@@ -8,6 +8,9 @@ let chatHistoryListArray = [];
 let activeSessionId = null;
 
 let liveSocket = null;
+let liveSocketPingTimer = null;
+let liveSocketRetryCount = 0;
+let liveResponseTimer = null;
 let silenceTimer = null;
 let isUserSpeaking = false;
 let isRecognitionRunning = false;
@@ -27,6 +30,28 @@ let selectedRecipientEmail = "all";
 
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
+// =========================================================================
+// SAFE HTML HELPERS
+// Anything a user, the AI or the database can influence must be escaped before it reaches innerHTML,
+// otherwise a crafted name / message becomes a stored-XSS attack on the Creator's admin panel.
+// =========================================================================
+function escapeHtml(value) {
+    return String(value === undefined || value === null ? "" : value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+
+let messageIdCounter = 0;
+function nextMessageId() {
+    // Date.now() alone is not unique (two bubbles created in the same millisecond got the same id,
+    // so the AI reply could overwrite the user's own bubble)
+    messageIdCounter += 1;
+    return "msg-" + Date.now() + "-" + messageIdCounter;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     checkUserAuth();
     loadSavedHistory();
@@ -41,8 +66,17 @@ function checkUserAuth() {
     const savedUser = localStorage.getItem("nexuz_user_data");
     const authModal = document.getElementById("authModal");
 
+    currentUser = null;
     if (savedUser) {
-        currentUser = JSON.parse(savedUser);
+        try {
+            currentUser = JSON.parse(savedUser);
+        } catch (e) {
+            // corrupted saved login - start clean instead of a blank page
+            localStorage.removeItem("nexuz_user_data");
+        }
+    }
+
+    if (currentUser) {
         if (authModal) authModal.style.display = "none";
         updateSidebarUserDisplay();
         checkUnreadNotifications();
@@ -54,7 +88,7 @@ function checkUserAuth() {
 async function checkUnreadNotifications() {
     if (!currentUser || !currentUser.email) return;
     try {
-        const res = await fetch(`/api/messages/${currentUser.email}`);
+        const res = await fetch(`/api/messages/${encodeURIComponent(currentUser.email)}`);
         const data = await res.json();
         const redDot = document.getElementById("settingsRedDot");
         const tabDot = document.getElementById("tabUnreadDot");
@@ -123,7 +157,7 @@ async function loadMessagesAndUsersTab() {
     container.innerHTML = `<div style="text-align:center; color:#888; padding:20px;">Loading messages...</div>`;
 
     try {
-        const msgRes = await fetch(`/api/messages/${currentUser.email}`);
+        const msgRes = await fetch(`/api/messages/${encodeURIComponent(currentUser.email)}`);
         const msgData = await msgRes.json();
         const messages = msgData.messages || [];
 
@@ -166,10 +200,10 @@ async function loadMessagesAndUsersTab() {
                         ${messages.length === 0 ? '<div style="color: #666; font-size: 12px; text-align: center;">No messages or feedback received yet.</div>' : messages.map(m => `
                             <div style="background: #0b0516; border: 1px solid rgba(123,0,255,0.3); border-radius: 8px; padding: 8px; font-size: 12px;">
                                 <div style="display: flex; justify-content: space-between; color: #a855f7; font-weight: 600; margin-bottom: 2px;">
-                                    <span>${m.sender_name || m.sender_email}</span>
-                                    <span style="font-size: 10px; color: #666;">To: ${m.recipient_email}</span>
+                                    <span>${escapeHtml(m.sender_name || m.sender_email)}</span>
+                                    <span style="font-size: 10px; color: #666;">To: ${escapeHtml(m.recipient_email)}</span>
                                 </div>
-                                <div style="color: #fff;">${m.content}</div>
+                                <div style="color: #fff;">${escapeHtml(m.content)}</div>
                             </div>
                         `).join('')}
                     </div>
@@ -192,7 +226,7 @@ async function loadMessagesAndUsersTab() {
                         ${messages.length === 0 ? '<div style="color: #666; font-size: 12px; text-align: center;">No messages from creator.</div>' : messages.map(m => `
                             <div style="background: #0b0516; border: 1px solid rgba(123,0,255,0.3); border-radius: 8px; padding: 8px; font-size: 12px;">
                                 <div style="color: #FFD700; font-weight: 600; margin-bottom: 2px;"><i class="fa-solid fa-crown"></i> From Creator</div>
-                                <div style="color: #fff;">${m.content}</div>
+                                <div style="color: #fff;">${escapeHtml(m.content)}</div>
                             </div>
                         `).join('')}
                     </div>
@@ -208,16 +242,16 @@ async function loadMessagesAndUsersTab() {
 function renderUserAccountListItems(users) {
     if (!users || users.length === 0) return '<div style="color:#666; font-size:11px; text-align:center;">No users found</div>';
     return users.map(u => `
-        <div onclick="selectRecipient('${u.email}', '${u.name}')" style="padding: 6px 8px; border-radius: 6px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: #120826; transition: background 0.2s;" onmouseover="this.style.background='#1f0d3d'" onmouseout="this.style.background='#120826'">
-            <span style="color: #fff; font-weight: 600;">${u.name}</span>
-            <span style="color: #888; font-size: 11px;">${u.email}</span>
+        <div data-email="${escapeHtml(u.email)}" data-name="${escapeHtml(u.name)}" onclick="selectRecipient(this.dataset.email, this.dataset.name)" style="padding: 6px 8px; border-radius: 6px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: #120826; transition: background 0.2s;" onmouseover="this.style.background='#1f0d3d'" onmouseout="this.style.background='#120826'">
+            <span style="color: #fff; font-weight: 600;">${escapeHtml(u.name)}</span>
+            <span style="color: #888; font-size: 11px;">${escapeHtml(u.email)}</span>
         </div>
     `).join('');
 }
 
 function filterUserAccountList() {
     const query = document.getElementById("userSearchInput").value.toLowerCase();
-    const filtered = allSystemUsers.filter(u => u.name.toLowerCase().includes(query) || u.email.toLowerCase().includes(query));
+    const filtered = allSystemUsers.filter(u => String(u.name || "").toLowerCase().includes(query) || String(u.email || "").toLowerCase().includes(query));
     const container = document.getElementById("usersAccountListContainer");
     if (container) {
         container.innerHTML = renderUserAccountListItems(filtered);
@@ -301,7 +335,7 @@ async function fetchCreatorMetrics() {
     if (!currentUser || currentUser.email.toLowerCase() !== "chamathmanujaya76@gmail.com") return;
 
     try {
-        const res = await fetch(`/api/admin/metrics/${currentUser.email}`);
+        const res = await fetch(`/api/admin/metrics/${encodeURIComponent(currentUser.email)}`);
         const data = await res.json();
         if (data.success && data.metrics) {
             const metrics = data.metrics;
@@ -312,7 +346,7 @@ async function fetchCreatorMetrics() {
             if (usageListElem) {
                 let html = "";
                 for (const [provider, count] of Object.entries(metrics.api_calls_count || {})) {
-                    html += `<div style="display: flex; justify-content: space-between; padding: 2px 0;"><span>${provider}:</span><strong style="color: #00ff88;">${count} calls</strong></div>`;
+                    html += `<div style="display: flex; justify-content: space-between; padding: 2px 0;"><span>${escapeHtml(provider)}:</span><strong style="color: #00ff88;">${escapeHtml(count)} calls</strong></div>`;
                 }
                 usageListElem.innerHTML = html;
             }
@@ -324,7 +358,7 @@ async function fetchCreatorMetrics() {
                 } else {
                     let errHtml = "";
                     metrics.errors_log.forEach(err => {
-                        errHtml += `[${err.time}] (${err.provider}): ${err.error}<br>`;
+                        errHtml += `[${escapeHtml(err.time)}] (${escapeHtml(err.provider)}): ${escapeHtml(err.error)}<br>`;
                     });
                     errorBox.innerHTML = errHtml;
                 }
@@ -339,15 +373,15 @@ async function fetchCreatorMetrics() {
 
 async function loadCreatorKnowledgeBase() {
     try {
-        const res = await fetch(`/api/admin/knowledge/${currentUser.email}`);
+        const res = await fetch(`/api/admin/knowledge/${encodeURIComponent(currentUser.email)}`);
         const data = await res.json();
         const container = document.getElementById("creatorKnowledgeList");
         if (!container) return;
-        if (data.success && data.items.length > 0) {
+        if (data.success && Array.isArray(data.items) && data.items.length > 0) {
             container.innerHTML = data.items.map(item => `
                 <div style="background: #06030E; border: 1px solid rgba(123,0,255,0.4); border-radius: 8px; padding: 8px; font-size: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                    <div><span style="color:#a855f7; font-weight:700;">[${item.category}]</span> ${item.content}</div>
-                    <button onclick="deleteCreatorKnowledge('${item.id}')" style="background: #ef4444; border: none; color: #fff; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;"><i class="fa-solid fa-trash"></i></button>
+                    <div><span style="color:#a855f7; font-weight:700;">[${escapeHtml(item.category)}]</span> ${escapeHtml(item.content)}</div>
+                    <button data-id="${escapeHtml(item.id)}" onclick="deleteCreatorKnowledge(this.dataset.id)" style="background: #ef4444; border: none; color: #fff; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 11px;"><i class="fa-solid fa-trash"></i></button>
                 </div>
             `).join('');
         } else {
@@ -401,7 +435,7 @@ async function handleCreatorCliKeydown(e) {
         const cmd = e.target.value.trim();
         if (!cmd) return;
         const outputBox = document.getElementById("cliOutputBox");
-        outputBox.innerHTML += `<br><span style="color: #00ff88;">> ${cmd}</span>`;
+        outputBox.innerHTML += `<br><span style="color: #00ff88;">> ${escapeHtml(cmd)}</span>`;
         e.target.value = "";
 
         try {
@@ -411,7 +445,7 @@ async function handleCreatorCliKeydown(e) {
                 body: JSON.stringify({ creator_email: currentUser.email, command: cmd })
             });
             const data = await res.json();
-            outputBox.innerHTML += `<br><span style="color: #fff; white-space: pre-wrap;">${data.output}</span>`;
+            outputBox.innerHTML += `<br><span style="color: #fff; white-space: pre-wrap;">${escapeHtml(data.output || data.message || "")}</span>`;
             outputBox.scrollTop = outputBox.scrollHeight;
         } catch (err) {
             outputBox.innerHTML += `<br><span style="color: #ff4d4d;">CLI Execution Error</span>`;
@@ -421,7 +455,7 @@ async function handleCreatorCliKeydown(e) {
 
 async function loadDatabaseInspector() {
     try {
-        const res = await fetch(`/api/admin/db/inspect/${currentUser.email}`);
+        const res = await fetch(`/api/admin/db/inspect/${encodeURIComponent(currentUser.email)}`);
         const data = await res.json();
         const container = document.getElementById("dbInspectorContainer");
         if (!container) return;
@@ -430,8 +464,8 @@ async function loadDatabaseInspector() {
             for (const [collName, docs] of Object.entries(data.collections)) {
                 html += `
                     <div style="background: #06030E; border: 1px solid #7B00FF; border-radius: 8px; padding: 10px; margin-bottom: 8px;">
-                        <strong style="color: #FFD700; font-size: 13px;"><i class="fa-solid fa-database"></i> Collection: ${collName} (${docs.length} docs)</strong>
-                        <pre style="font-size: 11px; color: #38bdf8; max-height: 100px; overflow-y: auto; margin-top: 6px;">${JSON.stringify(docs, null, 2)}</pre>
+                        <strong style="color: #FFD700; font-size: 13px;"><i class="fa-solid fa-database"></i> Collection: ${escapeHtml(collName)} (${docs.length} docs)</strong>
+                        <pre style="font-size: 11px; color: #38bdf8; max-height: 100px; overflow-y: auto; margin-top: 6px;">${escapeHtml(JSON.stringify(docs, null, 2))}</pre>
                     </div>
                 `;
             }
@@ -636,21 +670,42 @@ function closeSettingsModal() {
     if (modal) modal.style.display = "none";
 }
 
+function resizeImageDataUrl(dataUrl, maxSize, done) {
+    // Phone photos are several MB; the server and the database reject big avatars, so shrink to maxSize px first.
+    const img = new Image();
+    img.onload = () => {
+        try {
+            const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+            const canvas = document.createElement("canvas");
+            canvas.width = Math.max(1, Math.round(img.width * scale));
+            canvas.height = Math.max(1, Math.round(img.height * scale));
+            canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+            const keepPng = /^data:image\/(png|gif|webp)/i.test(dataUrl);
+            done(keepPng ? canvas.toDataURL("image/png") : canvas.toDataURL("image/jpeg", 0.85));
+        } catch (e) {
+            done(dataUrl);
+        }
+    };
+    img.onerror = () => done(dataUrl);
+    img.src = dataUrl;
+}
+
 function handleProfilePicUpload(event) {
     const file = event.target.files[0];
     if (!file) return;
 
     const reader = new FileReader();
     reader.onload = function (e) {
-        const base64Pic = e.target.result;
-        const preview = document.getElementById("settingsAvatarPreview");
-        const defaultIcon = document.getElementById("settingsDefaultAvatarIcon");
-        
-        preview.src = base64Pic;
-        preview.style.display = "block";
-        if (defaultIcon) defaultIcon.style.display = "none";
-        
-        preview.dataset.base64 = base64Pic;
+        resizeImageDataUrl(e.target.result, 256, (base64Pic) => {
+            const preview = document.getElementById("settingsAvatarPreview");
+            const defaultIcon = document.getElementById("settingsDefaultAvatarIcon");
+
+            preview.src = base64Pic;
+            preview.style.display = "block";
+            if (defaultIcon) defaultIcon.style.display = "none";
+
+            preview.dataset.base64 = base64Pic;
+        });
     };
     reader.readAsDataURL(file);
 }
@@ -704,6 +759,8 @@ async function saveSettings(e) {
             updateSidebarUserDisplay();
             closeSettingsModal();
             alert("Settings සාර්ථකව සුරකින ලදී!");
+        } else {
+            alert(data.message || "Settings සුරැකීමට නොහැකි විය!");
         }
     } catch (err) {
         alert("Settings සුරැකීමට නොහැකි විය!");
@@ -754,7 +811,16 @@ function loadSavedHistory() {
 }
 
 function saveHistoryToStorage() {
-    localStorage.setItem("nexuz_chat_history_list", JSON.stringify(chatHistoryListArray));
+    try {
+        localStorage.setItem("nexuz_chat_history_list", JSON.stringify(chatHistoryListArray));
+    } catch (e) {
+        // storage full: drop the oldest saved chats instead of breaking sendMessage()
+        console.warn("Chat history could not be saved:", e);
+        if (chatHistoryListArray.length > 1) {
+            chatHistoryListArray.pop();
+            saveHistoryToStorage();
+        }
+    }
 }
 
 function addHistoryItem(title, sessionId) {
@@ -823,11 +889,12 @@ function renderSidebarHistory() {
         const isActive = item.id === activeSessionId;
         const div = document.createElement("div");
         div.className = `history-item ${isActive ? 'active' : ''}`;
+        div.dataset.id = item.id;
         div.onclick = () => loadHistorySession(item.id);
         div.innerHTML = `
             <i class="fa-regular fa-message"></i>
-            <span class="hist-title-text">${item.title}</span>
-            <button class="delete-hist-btn" onclick="deleteHistoryItem('${item.id}', event)" title="Delete History">
+            <span class="hist-title-text">${escapeHtml(item.title)}</span>
+            <button class="delete-hist-btn" onclick="deleteHistoryItem(this.parentElement.dataset.id, event)" title="Delete History">
                 <i class="fa-solid fa-trash-can"></i>
             </button>
         `;
@@ -866,7 +933,7 @@ function renderFilePreviews() {
 
         chip.innerHTML = `
             <i class="fa-solid ${iconClass}"></i>
-            <span>${file.name.length > 18 ? file.name.substring(0, 15) + "..." : file.name}</span>
+            <span>${escapeHtml(file.name.length > 18 ? file.name.substring(0, 15) + "..." : file.name)}</span>
             <button class="remove-file-btn" onclick="removeFile(${index})"><i class="fa-solid fa-xmark"></i></button>
         `;
         container.appendChild(chip);
@@ -875,8 +942,22 @@ function renderFilePreviews() {
 
 function renderMarkdown(text) {
     if (!text) return "";
-    
-    let formatted = text.replace(/```([a-zA-Z0-9_+-]*)\n([\s\S]*?)```/g, (match, lang, code) => {
+    text = String(text);
+
+    // 1) Escape everything that is NOT inside a ``` code fence (fences are escaped separately below),
+    //    so AI / web-search / user text can never inject HTML or scripts.
+    const fence = /```([a-zA-Z0-9_+-]*)\n([\s\S]*?)```/g;
+    const escapeMarkup = (t) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    let safeText = "";
+    let lastIndex = 0;
+    let fenceMatch;
+    while ((fenceMatch = fence.exec(text)) !== null) {
+        safeText += escapeMarkup(text.slice(lastIndex, fenceMatch.index)) + fenceMatch[0];
+        lastIndex = fenceMatch.index + fenceMatch[0].length;
+    }
+    safeText += escapeMarkup(text.slice(lastIndex));
+
+    let formatted = safeText.replace(/```([a-zA-Z0-9_+-]*)\n([\s\S]*?)```/g, (match, lang, code) => {
         const language = lang.trim() || 'code';
         const escapedCode = code
             .replace(/&/g, "&amp;")
@@ -903,9 +984,22 @@ function renderMarkdown(text) {
     formatted = formatted.replace(/^## (.*$)/gim, '<h2>$1</h2>');
     formatted = formatted.replace(/^# (.*$)/gim, '<h1>$1</h1>');
     formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+    // 2) Markdown images and links (the system prompt asks the AI to answer with ![title](url) + source link).
+    //    Only http(s) URLs are accepted, so javascript: / data: links can never be created.
+    formatted = formatted.replace(/!\[([^\]\n]*)\]\((https?:\/\/[^\s)"']+)\)/g,
+        (match, alt, url) => `<img class="chat-inline-image" src="${url}" alt="${alt.replace(/"/g, "&quot;")}" loading="lazy" referrerpolicy="no-referrer" style="max-width:100%; border-radius:12px; margin:6px 0; display:block;">`);
+    formatted = formatted.replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)"']+)\)/g,
+        (match, label, url) => `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;">${label}</a>`);
+
     formatted = formatted.replace(/^\* (.*$)/gim, '<li>$1</li>');
     formatted = formatted.replace(/^- (.*$)/gim, '<li>$1</li>');
     formatted = formatted.replace(/(<li>.*<\/li>)/sim, '<ul>$1</ul>');
+
+    // line breaks that are only template whitespace between tags (code block header, list items, headings)
+    // must not become <br> gaps - only real line breaks of the text are converted
+    formatted = formatted.replace(/>\s*\n\s*</g, '><');
+    formatted = formatted.replace(/(<\/(?:h1|h2|h3|ul|div)>)[ \t]*\n/g, '$1');
     formatted = formatted.replace(/\n/g, '<br>');
 
     return formatted;
@@ -987,7 +1081,7 @@ async function sendMessage(presetMessage = null) {
                         <i class="fa-solid fa-triangle-exclamation warning-icon"></i>
                         <div class="rate-limit-content">
                             <strong>Gemini API Key Limit Reached</strong>
-                            <p>${data.reply}</p>
+                            <p>${escapeHtml(data.reply)}</p>
                         </div>
                     </div>
                 `;
@@ -1023,7 +1117,7 @@ function appendMessage(content, className, files = [], isHtml = false) {
     wrapper.className = `msg-bubble-wrapper ${className === 'bot-msg' ? 'bot-wrapper' : 'user-wrapper'}`;
 
     const msgDiv = document.createElement("div");
-    const id = "msg-" + Date.now();
+    const id = nextMessageId();
     msgDiv.id = id;
     msgDiv.className = `msg-bubble ${className}`;
 
@@ -1033,11 +1127,12 @@ function appendMessage(content, className, files = [], isHtml = false) {
                 const img = document.createElement("img");
                 img.className = "msg-img-preview";
                 img.src = URL.createObjectURL(file);
+                img.onload = () => URL.revokeObjectURL(img.src);
                 msgDiv.appendChild(img);
             } else {
                 const badge = document.createElement("div");
                 badge.className = "msg-attachment-badge";
-                badge.innerHTML = `<i class="fa-solid fa-paperclip"></i> ${file.name}`;
+                badge.innerHTML = `<i class="fa-solid fa-paperclip"></i> ${escapeHtml(file.name)}`;
                 msgDiv.appendChild(badge);
             }
         });
@@ -1203,6 +1298,7 @@ function onWindowResize() {
 
 function initAudioVisualizer() {
     try {
+        if (animFrameId) cancelAnimationFrame(animFrameId);   // never run two render loops
         initThreeGlowVisualizer();
         visualizeAudio();
     } catch (e) {
@@ -1225,7 +1321,9 @@ function visualizeAudio() {
         for (let i = 0; i < positions.count; i++) {
             vertex.fromArray(originalPositions, i * 3);
             
-            const length = vertex.length() + Math.sin(waveTime * 5 + i * 0.35) * (isAiSpeaking ? 0.42 : 0.12);
+            // phase comes from the vertex POSITION (not its index) so shared corners move together and the wireframe never tears
+            const phase = vertex.x * 2.3 + vertex.y * 3.1 + vertex.z * 2.7;
+            const length = vertex.length() + Math.sin(waveTime * 5 + phase) * (isAiSpeaking ? 0.42 : 0.12);
             vertex.normalize().multiplyScalar(length);
 
             positions.setXYZ(i, vertex.x, vertex.y, vertex.z);
@@ -1283,16 +1381,43 @@ function connectLiveWebSocket() {
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${wsProtocol}//${window.location.host}/ws/live`;
 
-    try {
-        liveSocket = new WebSocket(wsUrl);
+    if (liveSocket) {
+        liveSocket.onclose = null;
+        try { liveSocket.close(); } catch (e) {}
+        liveSocket = null;
+    }
+    if (liveSocketPingTimer) {
+        clearInterval(liveSocketPingTimer);
+        liveSocketPingTimer = null;
+    }
 
-        liveSocket.onopen = () => {
+    try {
+        const socket = new WebSocket(wsUrl);
+        liveSocket = socket;
+
+        socket.onopen = () => {
             console.log("Connected to Nexuz Live WebSocket");
+            liveSocketRetryCount = 0;
+            // hosts / proxies drop idle sockets - the server answers ping with pong to keep the line alive
+            liveSocketPingTimer = setInterval(() => {
+                if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "ping" }));
+            }, 25000);
         };
 
-        liveSocket.onmessage = (event) => {
-            const data = JSON.parse(event.data);
+        socket.onmessage = (event) => {
+            let data;
+            try {
+                data = JSON.parse(event.data);
+            } catch (e) {
+                return;
+            }
             if (data.type === "ai_response") {
+                if (liveResponseTimer) {
+                    clearTimeout(liveResponseTimer);
+                    liveResponseTimer = null;
+                }
+                if (!isLiveVoiceActive) return;
+
                 const reply = data.reply || "සමාවන්න, තේරුණේ නැත.";
                 const statusText = document.getElementById("liveVoiceStatus");
                 if (statusText) statusText.innerText = reply;
@@ -1305,8 +1430,20 @@ function connectLiveWebSocket() {
             }
         };
 
-        liveSocket.onclose = () => {
+        socket.onclose = () => {
             console.log("Live WebSocket Disconnected");
+            if (liveSocketPingTimer) {
+                clearInterval(liveSocketPingTimer);
+                liveSocketPingTimer = null;
+            }
+            if (liveSocket === socket) liveSocket = null;
+            // unexpected drop while Live mode is open: reconnect (a few tries); until then /api/chat is used automatically
+            if (isLiveVoiceActive && liveSocketRetryCount < 5) {
+                liveSocketRetryCount += 1;
+                setTimeout(() => {
+                    if (isLiveVoiceActive && !liveSocket) connectLiveWebSocket();
+                }, 1000 * liveSocketRetryCount);
+            }
         };
     } catch (e) {
         console.log("WebSocket Connection Error:", e);
@@ -1345,7 +1482,20 @@ function closeLiveVoiceMode() {
         renderer = null;
     }
 
+    if (silenceTimer) {
+        clearTimeout(silenceTimer);
+        silenceTimer = null;
+    }
+    if (liveResponseTimer) {
+        clearTimeout(liveResponseTimer);
+        liveResponseTimer = null;
+    }
+    if (liveSocketPingTimer) {
+        clearInterval(liveSocketPingTimer);
+        liveSocketPingTimer = null;
+    }
     if (liveSocket) {
+        liveSocket.onclose = null;   // closing on purpose - do not auto-reconnect
         liveSocket.close();
         liveSocket = null;
     }
@@ -1400,15 +1550,22 @@ async function speakText(text, onCompleteCallback = null) {
         if (!response.ok) throw new Error("TTS generation failed");
 
         const blob = await response.blob();
+        if (!isLiveVoiceActive) {
+            // Live mode was closed while the voice was being generated - stay silent
+            isAiSpeaking = false;
+            return;
+        }
         const audioUrl = URL.createObjectURL(blob);
         const audio = new Audio(audioUrl);
 
         audio.onended = () => {
+            URL.revokeObjectURL(audioUrl);
             isAiSpeaking = false;
             if (onCompleteCallback) onCompleteCallback();
         };
 
         audio.onerror = () => {
+            URL.revokeObjectURL(audioUrl);
             isAiSpeaking = false;
             if (onCompleteCallback) onCompleteCallback();
         };
@@ -1434,7 +1591,17 @@ async function speakText(text, onCompleteCallback = null) {
 }
 
 function startLiveListening() {
-    if (!isLiveVoiceActive || !SpeechRecognition || isRecognitionRunning) return;
+    if (!isLiveVoiceActive || isRecognitionRunning) return;
+
+    if (!SpeechRecognition) {
+        const unsupportedStatus = document.getElementById("liveVoiceStatus");
+        if (unsupportedStatus) unsupportedStatus.innerText = "ඔබේ Browser එකේ Voice Recognition පහසුකම නොමැත.";
+        return;
+    }
+
+    // the mic button is the single source of truth: when the user muted the mic, never start listening again by itself
+    const liveMicBtn = document.getElementById("liveMicToggle");
+    if (liveMicBtn && !liveMicBtn.classList.contains("active")) return;
 
     if ('speechSynthesis' in window && window.speechSynthesis.speaking) {
         window.speechSynthesis.cancel();
@@ -1543,6 +1710,16 @@ async function processLiveVoiceInput(userText) {
             first_name: firstName,
             email: userEmail
         }));
+
+        // if no answer ever comes back (server restart, dropped connection) do not stay on "thinking" forever
+        if (liveResponseTimer) clearTimeout(liveResponseTimer);
+        liveResponseTimer = setTimeout(() => {
+            liveResponseTimer = null;
+            if (isLiveVoiceActive && !isAiSpeaking) {
+                if (statusText) statusText.innerText = "පිළිතුරක් ලැබුණේ නැත. නැවත උත්සාහ කරන්න...";
+                setTimeout(startLiveListening, 800);
+            }
+        }, 60000);
     } else {
         try {
             const res = await fetch("/api/chat", {
@@ -1561,6 +1738,7 @@ async function processLiveVoiceInput(userText) {
             });
 
             const data = await res.json();
+            if (!isLiveVoiceActive) return;
             const reply = data.reply || "සමාවන්න, මට එය තේරුණේ නැත.";
 
             if (statusText) statusText.innerText = reply;
